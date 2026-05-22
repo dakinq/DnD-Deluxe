@@ -1,0 +1,1155 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>D&D Charakterbogen</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="D&D Bogen">
+<meta name="theme-color" content="#0d0a07">
+<style>
+:root {
+  --gold: #c9a84c;
+  --gold-light: #e8cc7a;
+  --gold-dim: #7a6230;
+  --red: #c0392b;
+  --green: #27ae60;
+  --blue: #3366cc;
+  --text-main: #f0e6c8;
+  --text-dim: #a08c60;
+  --text-bright: #fff8e8;
+  --card-bg: rgba(42,31,14,0.92);
+  --card-border: rgba(201,168,76,0.3);
+  --bg: #0d0a07;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html { height: 100%; }
+body { height: 100vh; font-family: Georgia, serif; font-size: 16px; background: var(--bg); color: var(--text-main); overflow: hidden; }
+button { font-family: Georgia, serif; touch-action: manipulation; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+input, textarea, select { font-family: Georgia, serif; -webkit-appearance: none; }
+input[type=number] { -moz-appearance: textfield; }
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
+
+/* LAYOUT */
+#outer { position: fixed; top:0; left:0; right:0; bottom:0; overflow: hidden; background: linear-gradient(160deg,#0d0a07,#160e04,#0a0704); }
+#container { display:flex; height:100%; width:100%; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; scroll-snap-type:x mandatory; scrollbar-width:none; }
+#container::-webkit-scrollbar { display:none; }
+.page { flex:0 0 100vw; width:100vw; height:100%; overflow-y:auto; overflow-x:hidden; scroll-snap-align:start; padding:28px 14px 80px; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+.page::-webkit-scrollbar { display:none; }
+
+/* HEADER */
+.page-header { text-align:center; margin-bottom:16px; padding-bottom:10px; border-bottom:1px solid rgba(201,168,76,0.25); }
+.page-title { font-size:13px; letter-spacing:4px; color:var(--gold); text-transform:uppercase; }
+
+/* CARD */
+.card { background:var(--card-bg); border:1px solid var(--card-border); border-radius:12px; padding:14px; margin-bottom:12px; }
+.card-title { font-size:11px; letter-spacing:3px; color:var(--gold); text-transform:uppercase; margin-bottom:12px; text-align:center; }
+
+/* GRID */
+.grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+
+/* TILE */
+.tile { background:rgba(255,255,255,0.04); border:1px solid rgba(201,168,76,0.15); border-radius:10px; padding:10px 6px; text-align:center; display:block; width:100%; color:var(--text-main); }
+.tile.active { background:rgba(201,168,76,0.18); border-color:var(--gold); }
+.tile-label { font-size:9px; letter-spacing:2px; color:var(--text-dim); text-transform:uppercase; margin-bottom:4px; display:block; }
+
+/* INPUTS */
+input, textarea { color:var(--text-main); background:transparent; border:none; outline:none; }
+.editable { font-size:22px; font-weight:700; width:70px; text-align:center; border-bottom:1px solid rgba(201,168,76,0.2); display:block; margin:0 auto; color:var(--text-bright); }
+.score-input { font-size:12px; width:40px; text-align:center; color:var(--text-dim); border-bottom:1px solid rgba(201,168,76,0.1); display:block; margin:2px auto 0; }
+
+/* CHAR */
+.char-name { font-size:24px; font-weight:700; color:var(--gold-light); text-align:center; width:100%; border-bottom:1px solid rgba(201,168,76,0.2); padding:4px; margin-bottom:6px; display:block; }
+.char-sub { font-size:14px; color:var(--text-dim); font-style:italic; text-align:center; width:100%; border-bottom:1px solid rgba(201,168,76,0.1); padding:2px; display:block; }
+.stats-row { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:10px; }
+.stat-box { background:rgba(255,255,255,0.04); border:1px solid var(--card-border); border-radius:10px; padding:8px 4px; text-align:center; }
+.stat-label { font-size:8px; letter-spacing:2px; color:var(--text-dim); text-transform:uppercase; display:block; margin-bottom:4px; }
+.stat-val { font-size:18px; color:var(--gold-light); width:100%; text-align:center; background:transparent; border:none; outline:none; }
+
+/* HP */
+.hp-row { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px; }
+.hp-label-text { font-size:10px; letter-spacing:2px; color:var(--text-dim); text-transform:uppercase; }
+.hp-number { font-size:26px; font-weight:bold; color:var(--text-bright); }
+.hp-max-in { font-size:14px; color:var(--text-dim); width:40px; text-align:center; border-bottom:1px solid rgba(201,168,76,0.2); background:transparent; outline:none; }
+.hp-sep { color:var(--text-dim); margin:0 2px; }
+.bar-wrap { margin-bottom:14px; }
+.bar { width:100%; height:14px; background:rgba(255,255,255,0.07); border-radius:7px; overflow:hidden; border:1px solid rgba(255,255,255,0.06); }
+.fill { height:100%; border-radius:7px; width:0%; transition:width 0.4s,background 0.4s; }
+.hp-ctrl { display:flex; align-items:center; justify-content:center; gap:10px; margin-top:8px; }
+.hp-btn { width:40px; height:40px; border-radius:50%; border:1px solid rgba(201,168,76,0.3); background:rgba(255,255,255,0.06); color:var(--text-main); font-size:22px; display:flex; align-items:center; justify-content:center; }
+.hp-in { width:60px; text-align:center; font-size:18px; background:rgba(255,255,255,0.07); border:1px solid rgba(201,168,76,0.2); border-radius:8px; color:var(--text-main); padding:6px; outline:none; }
+
+/* INSPIRATION */
+.insp-btn { display:flex; align-items:center; justify-content:space-between; width:100%; padding:10px 14px; background:rgba(255,255,255,0.03); border:1px solid rgba(201,168,76,0.15); border-radius:10px; margin-bottom:10px; color:var(--text-dim); }
+.insp-btn.active { background:rgba(201,168,76,0.12); border-color:var(--gold); }
+.insp-label { font-size:11px; letter-spacing:2px; text-transform:uppercase; }
+.insp-gem { width:22px; height:22px; border-radius:50%; border:2px solid var(--gold-dim); transition:all 0.2s; }
+.insp-btn.active .insp-gem { background:var(--gold); border-color:var(--gold); }
+
+/* PROF */
+.prof-row { display:flex; align-items:center; background:rgba(201,168,76,0.07); border:1px solid rgba(201,168,76,0.2); border-radius:10px; padding:8px 14px; margin-bottom:12px; gap:8px; }
+.prof-label { font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--text-dim); display:block; }
+.prof-in { font-size:20px; color:var(--gold); width:44px; text-align:center; border-bottom:1px solid rgba(201,168,76,0.2); background:transparent; outline:none; }
+
+/* EXHAUSTION */
+.exh-row { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.exh-pip { width:32px; height:32px; border-radius:50%; border:1.5px solid rgba(201,168,76,0.25); background:rgba(255,255,255,0.04); font-size:11px; color:var(--text-dim); display:flex; align-items:center; justify-content:center; font-weight:bold; }
+.exh-pip.active { background:rgba(192,57,43,0.5); border-color:var(--red); color:#fff; }
+.exh-label { font-size:12px; color:var(--text-dim); margin-top:6px; font-style:italic; min-height:18px; }
+
+/* HIT DICE */
+.hd-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.hd-die { background:rgba(255,255,255,0.05); border:1px solid rgba(201,168,76,0.2); border-radius:8px; padding:6px 10px; font-size:14px; color:var(--text-dim); }
+.hd-die.used { background:rgba(192,57,43,0.15); border-color:rgba(192,57,43,0.3); color:rgba(192,57,43,0.7); text-decoration:line-through; }
+
+/* DEATH */
+.death-label { font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--text-dim); margin-bottom:5px; }
+.death-row { display:flex; gap:8px; margin-bottom:10px; }
+.d-tile { flex:1; height:26px; border-radius:6px; border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.04); }
+.d-tile.s-active { background:rgba(39,174,96,0.5); border-color:var(--green); }
+.d-tile.f-active { background:rgba(192,57,43,0.5); border-color:var(--red); }
+
+/* REST BUTTONS */
+.rest-row { display:flex; gap:8px; margin-top:10px; }
+.rest-btn { flex:1; padding:10px 6px; border-radius:10px; border:1px solid rgba(201,168,76,0.25); background:rgba(255,255,255,0.04); color:var(--text-dim); font-size:13px; letter-spacing:1px; }
+.rest-btn.short { border-color:rgba(201,168,76,0.3); color:var(--gold); background:rgba(201,168,76,0.08); }
+.rest-btn.long { border-color:rgba(39,174,96,0.4); color:#5dba7d; background:rgba(39,174,96,0.08); }
+
+/* SKILLS */
+.skill-item { display:flex; align-items:center; padding:10px; border-bottom:1px solid rgba(201,168,76,0.07); gap:10px; }
+.skill-item:last-child { border-bottom:none; }
+.skill-dot { width:18px; height:18px; border-radius:50%; border:1.5px solid var(--gold-dim); background:transparent; flex-shrink:0; display:block; position:relative; }
+.skill-dot.prof { background:var(--gold); border-color:var(--gold); }
+.skill-dot.exp { background:linear-gradient(135deg,#fff8c0 0%,#e8cc7a 30%,#fff 50%,#c9a84c 70%,#fff8c0 100%); background-size:200% 200%; border-color:#fff8c0; border-width:2px; box-shadow:0 0 8px 2px rgba(232,204,122,0.9),0 0 16px 4px rgba(201,168,76,0.5); animation:shimmer 1.8s ease-in-out infinite; }
+@keyframes shimmer { 0%{background-position:0% 0%;box-shadow:0 0 8px 2px rgba(232,204,122,0.9),0 0 16px 4px rgba(201,168,76,0.5);}50%{background-position:100% 100%;box-shadow:0 0 14px 4px rgba(255,248,180,1),0 0 24px 8px rgba(201,168,76,0.8);}100%{background-position:0% 0%;box-shadow:0 0 8px 2px rgba(232,204,122,0.9),0 0 16px 4px rgba(201,168,76,0.5);} }
+.skill-name { flex:1; font-size:15px; }
+.skill-attr { font-size:11px; color:var(--text-dim); font-style:italic; }
+.skill-mod { font-size:15px; color:var(--gold); font-weight:bold; width:42px; text-align:right; border-bottom:1px solid rgba(201,168,76,0.15); background:transparent; outline:none; color:var(--gold); }
+
+/* ATTACKS */
+.atk-card { background:rgba(255,255,255,0.03); border:1px solid rgba(201,168,76,0.12); border-radius:10px; padding:12px; margin-bottom:8px; }
+.atk-header { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+.atk-name { flex:1; font-size:14px; color:var(--gold-light); border-bottom:1px solid rgba(201,168,76,0.2); background:transparent; outline:none; }
+.atk-del { background:none; border:1px solid rgba(192,57,43,0.3); border-radius:6px; color:var(--red); font-size:15px; padding:2px 8px; opacity:0.7; }
+.atk-grid { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:6px; }
+.atk-field-label { font-size:8px; letter-spacing:1px; color:var(--text-dim); text-align:center; display:block; margin-bottom:2px; text-transform:uppercase; }
+.atk-field-val { width:100%; text-align:center; font-size:14px; background:rgba(255,255,255,0.05); border:1px solid rgba(201,168,76,0.1); border-radius:6px; padding:5px; color:var(--text-main); display:block; outline:none; }
+
+/* ADD BTN */
+.add-btn { width:100%; padding:11px; background:rgba(201,168,76,0.07); border:1px dashed var(--gold-dim); border-radius:10px; color:var(--text-dim); font-size:12px; letter-spacing:2px; text-transform:uppercase; margin-top:4px; }
+
+/* SPELLS */
+.spell-dc-row { display:flex; gap:8px; justify-content:center; margin-bottom:14px; }
+.spell-dc-tile { background:rgba(255,255,255,0.04); border:1px solid var(--card-border); border-radius:10px; padding:8px 14px; text-align:center; }
+.spell-dc-label { font-size:9px; letter-spacing:2px; color:var(--text-dim); text-transform:uppercase; display:block; margin-bottom:2px; }
+.spell-dc-val { font-size:20px; color:var(--gold); width:54px; text-align:center; border:none; background:transparent; outline:none; }
+.slot-row { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+.slot-label { font-size:11px; color:var(--text-dim); width:60px; flex-shrink:0; }
+.slot-dots { display:flex; gap:5px; flex:1; }
+.slot-dot { width:24px; height:24px; border-radius:50%; border:1px solid rgba(201,168,76,0.25); background:rgba(201,168,76,0.65); flex-shrink:0; }
+.slot-dot.used { background:rgba(201,168,76,0.1); }
+.slot-edit-btn { background:rgba(201,168,76,0.1); border:1px solid rgba(201,168,76,0.3); border-radius:8px; color:var(--text-dim); font-size:9px; letter-spacing:1px; padding:4px 10px; }
+.slot-edit-panel { margin-top:8px; background:rgba(255,255,255,0.03); border:1px solid rgba(201,168,76,0.12); border-radius:10px; padding:10px; }
+.slot-edit-row { display:flex; align-items:center; gap:10px; padding:5px 0; border-bottom:1px solid rgba(201,168,76,0.06); }
+.slot-edit-row:last-child { border-bottom:none; }
+.slot-edit-name { font-size:11px; color:var(--text-dim); width:56px; flex-shrink:0; }
+.slot-adj-btn { width:28px; height:28px; border-radius:50%; border:1px solid rgba(201,168,76,0.2); background:rgba(255,255,255,0.05); color:var(--text-main); font-size:18px; display:flex; align-items:center; justify-content:center; }
+.slot-count { font-size:18px; color:var(--gold); width:24px; text-align:center; }
+.slot-reset-btn { margin-left:auto; background:rgba(39,174,96,0.1); border:1px solid rgba(39,174,96,0.3); border-radius:6px; color:#27ae60; font-size:11px; padding:3px 8px; }
+.spell-section { margin-bottom:4px; }
+.spell-sec-header { display:flex; justify-content:space-between; align-items:center; padding:7px 12px; background:rgba(201,168,76,0.06); border-bottom:1px solid rgba(201,168,76,0.12); }
+.spell-sec-title { font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--gold); }
+.spell-sec-count { font-size:10px; color:var(--text-dim); }
+.spell-row { display:flex; align-items:center; gap:8px; padding:9px 10px; border-bottom:1px solid rgba(201,168,76,0.07); }
+.spell-row:last-child { border-bottom:none; }
+.spell-prep-btn { width:14px; height:14px; border:1.5px solid var(--gold-dim); border-radius:3px; background:transparent; flex-shrink:0; }
+.spell-prep-btn.active { background:var(--gold); border-color:var(--gold); }
+.spell-name-btn { flex:1; background:none; border:none; text-align:left; color:var(--text-main); font-size:14px; padding:0; border-bottom:1px solid rgba(201,168,76,0.08); }
+.spell-conc { font-size:10px; color:rgba(100,160,255,0.8); flex-shrink:0; }
+.spell-lvl-sel { background:rgba(30,20,8,0.9); border:none; border-bottom:1px solid rgba(201,168,76,0.15); color:var(--text-dim); font-size:12px; width:52px; text-align:center; font-family:Georgia,serif; padding:2px; outline:none; }
+.spell-del { background:none; border:none; color:var(--red); font-size:14px; opacity:0.4; padding:0 4px; }
+
+/* INVENTORY */
+.coins-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-bottom:14px; }
+.coin-tile { background:rgba(255,255,255,0.04); border:1px solid rgba(201,168,76,0.12); border-radius:10px; padding:8px 4px; text-align:center; }
+.coin-label { font-size:10px; letter-spacing:1px; display:block; margin-bottom:4px; }
+.kp{color:#b87333;}.sp{color:#aaa;}.ep{color:#e8cc7a;}.gp{color:#ffd700;}.pp{color:#b0c4de;}
+.coin-in { font-size:17px; width:100%; text-align:center; border-bottom:1px solid rgba(201,168,76,0.15); color:var(--text-main); background:transparent; outline:none; }
+.item-row { display:flex; align-items:center; padding:9px 10px; border-bottom:1px solid rgba(201,168,76,0.07); gap:8px; }
+.item-name-in { flex:1; font-size:14px; border-bottom:1px solid rgba(201,168,76,0.08); color:var(--text-main); background:transparent; outline:none; }
+.item-qty-in { width:38px; text-align:center; font-size:14px; color:var(--text-dim); border-bottom:1px solid rgba(201,168,76,0.08); background:transparent; outline:none; }
+.item-del { background:none; border:none; color:var(--red); font-size:14px; opacity:0.4; padding:0 4px; }
+
+/* NOTES */
+.notes-ta { width:100%; background:rgba(255,255,255,0.03); border:1px solid rgba(201,168,76,0.1); border-radius:10px; color:var(--text-main); font-size:15px; line-height:1.8; padding:12px; resize:none; min-height:160px; outline:none; }
+
+/* CHAR SWITCHER */
+.char-switcher { display:flex; gap:6px; overflow-x:auto; padding-bottom:4px; margin-bottom:12px; scrollbar-width:none; }
+.char-switcher::-webkit-scrollbar { display:none; }
+.char-tab { flex-shrink:0; padding:6px 14px; border-radius:20px; border:1px solid rgba(201,168,76,0.2); background:rgba(255,255,255,0.04); color:var(--text-dim); font-size:12px; white-space:nowrap; }
+.char-tab.active { background:rgba(201,168,76,0.18); border-color:var(--gold); color:var(--gold); }
+.char-tab.add-char { border-style:dashed; }
+
+/* SAVE */
+.save-row { display:flex; gap:8px; }
+.save-btn { flex:1; padding:12px 6px; border-radius:10px; font-size:14px; letter-spacing:1px; border:1px solid rgba(201,168,76,0.3); }
+.save-btn.prim { background:rgba(201,168,76,0.18); color:var(--gold-light); }
+.save-btn.sec { background:rgba(255,255,255,0.05); color:var(--text-dim); }
+
+/* TOAST */
+#toast { position:fixed; bottom:80px; left:50%; transform:translateX(-50%) translateY(16px); background:rgba(20,14,4,0.96); border:1px solid var(--gold); color:var(--gold-light); font-size:13px; letter-spacing:1px; padding:10px 22px; border-radius:30px; opacity:0; transition:all 0.3s; z-index:9999; pointer-events:none; white-space:nowrap; }
+#toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+/* NAV */
+#nav { position:fixed; bottom:0; left:0; right:0; height:68px; background:rgba(10,7,4,0.97); border-top:1px solid rgba(201,168,76,0.2); display:flex; align-items:center; justify-content:space-around; padding:0 4px; z-index:1000; }
+.nb { display:flex; flex-direction:column; align-items:center; gap:2px; background:none; border:none; padding:8px 10px; border-radius:10px; color:#7a6230; transition:color 0.2s,background 0.2s; min-width:44px; }
+.nb.on { color:var(--gold); background:rgba(201,168,76,0.12); }
+.nb-icon { font-size:20px; line-height:1; }
+.nb-label { font-size:8px; letter-spacing:1px; text-transform:uppercase; }
+
+/* MODAL */
+.modal-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.75); z-index:5000; display:flex; align-items:flex-end; justify-content:center; opacity:0; pointer-events:none; transition:opacity 0.25s; }
+.modal-overlay.show { opacity:1; pointer-events:all; }
+.modal { background:#1a1208; border:1px solid var(--card-border); border-radius:20px 20px 0 0; width:100%; max-height:80vh; padding:20px 16px 36px; overflow-y:auto; transform:translateY(100%); transition:transform 0.3s; }
+.modal-overlay.show .modal { transform:translateY(0); }
+.modal-title { font-size:18px; color:var(--gold-light); font-weight:bold; margin-bottom:4px; }
+.modal-sub { font-size:12px; color:var(--text-dim); margin-bottom:14px; letter-spacing:1px; }
+.modal-close { position:absolute; top:16px; right:16px; background:rgba(255,255,255,0.08); border:none; color:var(--text-dim); width:32px; height:32px; border-radius:50%; font-size:18px; display:flex; align-items:center; justify-content:center; }
+.modal-notes { width:100%; background:rgba(255,255,255,0.04); border:1px solid rgba(201,168,76,0.15); border-radius:10px; color:var(--text-main); font-size:15px; line-height:1.8; padding:12px; resize:none; min-height:120px; outline:none; font-family:Georgia,serif; }
+.modal-save { width:100%; margin-top:12px; padding:12px; background:rgba(201,168,76,0.18); border:1px solid rgba(201,168,76,0.3); border-radius:10px; color:var(--gold-light); font-size:14px; }
+
+/* QR */
+.pdf-btn { width:100%; padding:12px; background:rgba(100,100,200,0.15); border:1px solid rgba(100,100,200,0.3); border-radius:10px; color:#99aaff; font-size:14px; margin-top:10px; }
+
+.divider { text-align:center; margin:12px 0 8px; position:relative; }
+.divider::before { content:''; position:absolute; top:50%; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,rgba(201,168,76,0.2),transparent); }
+.divider span { position:relative; background:#0d0a07; padding:0 10px; font-size:9px; letter-spacing:3px; color:var(--text-dim); text-transform:uppercase; }
+</style>
+</head>
+<body>
+<div id="toast"></div>
+
+<!-- SPELL DETAIL MODAL -->
+<div class="modal-overlay" id="spellModal" onclick="closeSpellModal(event)">
+  <div class="modal" style="position:relative;">
+    <button class="modal-close" onclick="closeSpellModalDirect()">✕</button>
+    <div class="modal-title" id="modalSpellName"></div>
+    <div class="modal-sub" id="modalSpellSub"></div>
+    <textarea class="modal-notes" id="modalSpellNotes" placeholder="Zauber-Details: Reichweite, Dauer, Beschreibung..." oninput="saveSpellNote()"></textarea>
+    <div id="modalRestSettings" style="display:none;"></div>
+    <button class="modal-save" id="modalSaveBtn" onclick="closeSpellModalDirect()">✓ Fertig</button>
+  </div>
+</div>
+
+<!-- SHARE MODAL -->
+<div class="modal-overlay" id="qrModal" onclick="closeQrModal(event)">
+  <div class="modal" style="position:relative;">
+    <button class="modal-close" onclick="closeQrModalDirect()">✕</button>
+    <div class="modal-title">Charakter teilen</div>
+    <div class="modal-sub" style="margin-bottom:14px;">Kopiere den Code und füge ihn auf einem anderen Gerät ein</div>
+    <textarea id="shareCodeArea" readonly
+      style="width:100%;height:120px;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.2);border-radius:10px;color:#a08c60;font-size:11px;padding:10px;resize:none;outline:none;font-family:monospace;word-break:break-all;"></textarea>
+    <button onclick="copyShareCode()" style="width:100%;margin-top:8px;padding:12px;background:rgba(201,168,76,0.18);border:1px solid rgba(201,168,76,0.3);border-radius:10px;color:#e8cc7a;font-size:14px;">📋 Code kopieren</button>
+    <div style="margin:14px 0 6px;border-top:1px solid rgba(201,168,76,0.15);padding-top:14px;">
+      <div class="modal-sub" style="margin-bottom:8px;">Code von anderem Gerät einfügen</div>
+      <textarea id="importCodeArea" placeholder="Code hier einfügen..."
+        style="width:100%;height:80px;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.2);border-radius:10px;color:#f0e6c8;font-size:11px;padding:10px;resize:none;outline:none;font-family:monospace;word-break:break-all;"></textarea>
+      <button onclick="importShareCode()" style="width:100%;margin-top:8px;padding:12px;background:rgba(39,174,96,0.12);border:1px solid rgba(39,174,96,0.3);border-radius:10px;color:#5dba7d;font-size:14px;">📥 Charakter laden</button>
+    </div>
+    <button class="pdf-btn" onclick="printChar()">🖨 Als PDF drucken / speichern</button>
+  </div>
+</div>
+
+<div id="outer">
+<div id="container">
+
+<!-- PAGE 0: CHARAKTER -->
+<div class="page" id="pg0">
+  <div class="page-header"><div class="page-title">⚔ Charakter ⚔</div></div>
+
+  <!-- CHAR SWITCHER -->
+  <div class="char-switcher" id="charSwitcher"></div>
+
+  <div class="card">
+    <input class="char-name" id="charName" value="Glim Nackle Huhu">
+    <input class="char-sub" id="charSub" value="Barde · Level 5 · Gnom · Neutrales Gut">
+    <div class="stats-row">
+      <div class="stat-box"><span class="stat-label">Rüstung</span><input class="stat-val" id="statRK" value="18"></div>
+      <div class="stat-box"><span class="stat-label">Initiative</span><input class="stat-val" id="statINI" value="+4"></div>
+      <div class="stat-box"><span class="stat-label">Bewegung</span><input class="stat-val" id="statBEW" value="7,5m"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">❤ Trefferpunkte</div>
+    <button class="insp-btn" id="inspBtn" onclick="toggleInsp()">
+      <span class="insp-label">Inspiration</span>
+      <div class="insp-gem" id="inspGem"></div>
+    </button>
+    <div class="prof-row">
+      <div><span class="prof-label">Übungsbonus</span><input class="prof-in" id="profBonus" value="+3"></div>
+      <div style="flex:1"></div>
+      <div style="text-align:right"><span class="prof-label">Passive Wahrn.</span><input class="prof-in" id="passPerc" value="14" style="width:48px;text-align:center;"></div>
+    </div>
+    <div class="bar-wrap">
+      <div class="hp-row">
+        <span class="hp-label-text">Leben</span>
+        <span><span class="hp-number" id="hpNum">23</span><span class="hp-sep">/</span><input class="hp-max-in" id="maxHp" value="56" type="number" oninput="renderBars()"></span>
+      </div>
+      <div class="bar"><div class="fill" id="hpFill"></div></div>
+      <div class="hp-ctrl">
+        <button class="rest-btn short" onclick="shortRest()" style="width:38px;height:38px;flex:none;border-radius:50%;padding:0;font-size:16px;display:flex;align-items:center;justify-content:center;">☕</button>
+        <button class="hp-btn" onclick="chHP(-1)">−</button>
+        <input class="hp-in" id="hpAmt" value="1" type="number" min="0">
+        <button class="hp-btn" onclick="chHP(1)">+</button>
+        <button class="rest-btn long" onclick="longRest()" style="width:38px;height:38px;flex:none;border-radius:50%;padding:0;font-size:16px;display:flex;align-items:center;justify-content:center;">🌙</button>
+      </div>
+    </div>
+    <div class="bar-wrap" style="margin-bottom:0">
+      <div class="hp-row">
+        <span class="hp-label-text">Temp. TP</span>
+        <span class="hp-number" id="tempNum">0</span>
+      </div>
+      <div class="bar"><div class="fill" id="tempFill"></div></div>
+      <div class="hp-ctrl">
+        <button class="hp-btn" onclick="chTemp(-1)">−</button>
+        <input class="hp-in" id="tempAmt" value="1" type="number" min="0">
+        <button class="hp-btn" onclick="chTemp(1)">+</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Attribute</div>
+    <div class="grid3">
+      <div class="tile"><span class="tile-label">Stärke</span><input class="editable" id="aSTAm" value="−1"><input class="score-input" id="aSTAv" value="8"></div>
+      <div class="tile"><span class="tile-label">Geschick</span><input class="editable" id="aGESm" value="+4"><input class="score-input" id="aGESv" value="17"></div>
+      <div class="tile"><span class="tile-label">Konstitution</span><input class="editable" id="aKONm" value="+4"><input class="score-input" id="aKONv" value="18"></div>
+      <div class="tile"><span class="tile-label">Intelligenz</span><input class="editable" id="aINTm" value="+3"><input class="score-input" id="aINTv" value="13"></div>
+      <div class="tile"><span class="tile-label">Weisheit</span><input class="editable" id="aWEIm" value="+2"><input class="score-input" id="aWEIv" value="15"></div>
+      <div class="tile"><span class="tile-label">Charisma</span><input class="editable" id="aCHAm" value="+3"><input class="score-input" id="aCHAv" value="16"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Rettungswürfe</div>
+    <div class="grid3" id="savesGrid">
+      <button class="tile" onclick="toggleSave(this)"><span class="tile-label">Stärke</span><input class="editable" value="0" onclick="event.stopPropagation()"></button>
+      <button class="tile active" onclick="toggleSave(this)"><span class="tile-label">Geschick</span><input class="editable" value="+6" onclick="event.stopPropagation()"></button>
+      <button class="tile active" onclick="toggleSave(this)"><span class="tile-label">Konstitution</span><input class="editable" value="+5" onclick="event.stopPropagation()"></button>
+      <button class="tile active" onclick="toggleSave(this)"><span class="tile-label">Intelligenz</span><input class="editable" value="+4" onclick="event.stopPropagation()"></button>
+      <button class="tile" onclick="toggleSave(this)"><span class="tile-label">Weisheit</span><input class="editable" value="+3" onclick="event.stopPropagation()"></button>
+      <button class="tile active" onclick="toggleSave(this)"><span class="tile-label">Charisma</span><input class="editable" value="+5" onclick="event.stopPropagation()"></button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">☠ Todeswürfe</div>
+    <div class="death-label">✓ Erfolge</div>
+    <div class="death-row">
+      <button class="d-tile" onclick="this.classList.toggle('s-active')"></button>
+      <button class="d-tile" onclick="this.classList.toggle('s-active')"></button>
+      <button class="d-tile" onclick="this.classList.toggle('s-active')"></button>
+    </div>
+    <div class="death-label">✗ Misserfolge</div>
+    <div class="death-row">
+      <button class="d-tile" onclick="this.classList.toggle('f-active')"></button>
+      <button class="d-tile" onclick="this.classList.toggle('f-active')"></button>
+      <button class="d-tile" onclick="this.classList.toggle('f-active')"></button>
+    </div>
+  </div>
+
+  <!-- TREFFERWÜRFEL -->
+  <div class="card">
+    <div class="card-title">Trefferwürfel</div>
+    <div class="hd-row" id="hdRow"></div>
+    <div style="display:flex;gap:8px;margin-top:10px;align-items:center;">
+      <span style="font-size:12px;color:var(--text-dim);">Würfeltyp:</span>
+      <select id="hdType" style="background:rgba(255,255,255,0.05);border:1px solid rgba(201,168,76,0.2);border-radius:8px;color:var(--text-main);padding:4px 8px;font-size:14px;outline:none;">
+        <option value="6">W6</option><option value="8" selected>W8</option><option value="10">W10</option><option value="12">W12</option>
+      </select>
+      <button onclick="resetHD()" style="margin-left:auto;background:rgba(39,174,96,0.1);border:1px solid rgba(39,174,96,0.3);border-radius:8px;color:#27ae60;font-size:12px;padding:5px 10px;">↺ Alle zurück</button>
+    </div>
+  </div>
+
+  <!-- ERSCHÖPFUNG -->
+  <div class="card">
+    <div class="card-title">Erschöpfung</div>
+    <div class="exh-row" id="exhRow"></div>
+    <div class="exh-label" id="exhLabel"></div>
+  </div>
+
+</div>
+
+<!-- PAGE 1: FÄHIGKEITEN -->
+<div class="page" id="pg1">
+  <div class="page-header"><div class="page-title">🎭 Fähigkeiten</div></div>
+  <div class="card" style="padding:0;">
+    <div style="display:flex;gap:14px;padding:10px 14px 8px;font-size:13px;color:var(--text-dim);align-items:center;">
+      <span>○ Keine</span>
+      <span style="color:var(--gold);">● Übung</span>
+      <span style="display:inline-flex;align-items:center;gap:4px;">
+        <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:linear-gradient(135deg,#fff8c0,#e8cc7a,#fff,#c9a84c);border:2px solid #fff8c0;box-shadow:0 0 8px 2px rgba(232,204,122,0.9);vertical-align:middle;"></span>
+        <span style="color:var(--gold-light);">Expertise</span>
+      </span>
+    </div>
+    <div id="skillList"></div>
+  </div>
+</div>
+
+<!-- PAGE 2: ANGRIFFE -->
+<div class="page" id="pg2">
+  <div class="page-header"><div class="page-title">⚔ Angriffe</div></div>
+  <div id="atkList"></div>
+  <button class="add-btn" onclick="addAtk()">+ Angriff hinzufügen</button>
+  <div class="divider" style="margin-top:14px;"><span>Klassenmerkmale</span></div>
+  <div class="card">
+    <textarea class="notes-ta" id="classFeatures" style="min-height:140px;" placeholder="Bardische Inspiration, Jack of All Trades..."></textarea>
+  </div>
+</div>
+
+<!-- PAGE 3: ZAUBER -->
+<div class="page" id="pg3">
+  <div class="page-header"><div class="page-title">✨ Zauberei</div></div>
+  <div class="card">
+    <div class="card-title">Zauberwerte</div>
+    <div class="spell-dc-row">
+      <div class="spell-dc-tile"><span class="spell-dc-label">Attribut</span><span style="font-size:20px;color:var(--gold);">CHA</span></div>
+      <div class="spell-dc-tile"><span class="spell-dc-label">Zauber SG</span><input class="spell-dc-val" id="spellDC" value="14"></div>
+      <div class="spell-dc-tile"><span class="spell-dc-label">Angriff</span><input class="spell-dc-val" id="spellAtk" value="+6"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <span class="card-title" style="margin:0;">Zauberplätze</span>
+      <button class="slot-edit-btn" id="slotEditBtn" onclick="toggleSlotEdit()">Anpassen</button>
+    </div>
+    <div id="spellSlots"></div>
+    <div id="slotEditor" style="display:none;"></div>
+  </div>
+  <div class="card" style="padding:0;">
+    <div style="padding:12px 14px 6px;"><div class="card-title" style="margin-bottom:4px;">Bekannte Zauber</div>
+    <div style="font-size:11px;color:var(--text-dim);text-align:center;">Tippe auf einen Zauber für Details</div></div>
+    <div id="spellList"></div>
+    <div style="padding:8px 14px 12px;"><button class="add-btn" onclick="addSpell()">+ Zauber hinzufügen</button></div>
+  </div>
+</div>
+
+<!-- PAGE 4: AUSRÜSTUNG -->
+<div class="page" id="pg4">
+  <div class="page-header"><div class="page-title">🎒 Ausrüstung</div></div>
+  <div class="card">
+    <div class="card-title">Münzen</div>
+    <div class="coins-grid">
+      <div class="coin-tile"><span class="coin-label kp">KM</span><input class="coin-in" id="cKM" value="12"></div>
+      <div class="coin-tile"><span class="coin-label sp">SM</span><input class="coin-in" id="cSM" value="0"></div>
+      <div class="coin-tile"><span class="coin-label ep">EM</span><input class="coin-in" id="cEM" value="0"></div>
+      <div class="coin-tile"><span class="coin-label gp">GM</span><input class="coin-in" id="cGM" value="87"></div>
+      <div class="coin-tile"><span class="coin-label pp">PM</span><input class="coin-in" id="cPM" value="0"></div>
+    </div>
+  </div>
+  <div class="card" style="padding:0;">
+    <div style="padding:10px 14px 6px;"><div class="card-title" style="margin-bottom:0;">Gegenstände</div></div>
+    <div id="itemList"></div>
+    <div style="padding:8px 14px 12px;"><button class="add-btn" onclick="addItem()">+ Gegenstand hinzufügen</button></div>
+  </div>
+</div>
+
+<!-- PAGE 5: NOTIZEN -->
+<div class="page" id="pg5">
+  <div class="page-header"><div class="page-title">📜 Notizen & mehr</div></div>
+  <div class="card">
+    <div class="save-row">
+      <button class="save-btn prim" onclick="saveChar()">💾 Speichern</button>
+      <button class="save-btn sec" onclick="loadChar()">📂 Laden</button>
+    </div>
+    <input type="file" id="fileIn" accept=".json" style="display:none" onchange="importFile(event)">
+    <div style="height:8px;"></div>
+    <div class="save-row">
+      <button class="save-btn sec" onclick="showQR()">📲 QR-Code / Teilen</button>
+    </div>
+  </div>
+  <div class="card"><div class="card-title">Hintergrundgeschichte</div><textarea class="notes-ta" id="noteBG" placeholder="Persönlichkeit, Ideale, Bindungen..."></textarea></div>
+  <div class="card"><div class="card-title">Sprachen & Kundigkeit</div><textarea class="notes-ta" id="noteLang" style="min-height:100px;" placeholder="Gnomisch, Gemeinsprache..."></textarea></div>
+  <div class="card"><div class="card-title">Sitzungsnotizen</div><textarea class="notes-ta" id="noteSession" placeholder="Notizen..."></textarea></div>
+
+  <div class="card">
+    <div class="card-title">⚙ Rast-Einstellungen</div>
+    <div id="restSettingsPanel"></div>
+  </div>
+</div>
+
+</div>
+</div>
+
+<div id="nav">
+  <button class="nb on" id="nb0" onclick="go(0)"><span class="nb-icon">🧙</span><span class="nb-label">Charakter</span></button>
+  <button class="nb" id="nb1" onclick="go(1)"><span class="nb-icon">🎭</span><span class="nb-label">Fähigk.</span></button>
+  <button class="nb" id="nb2" onclick="go(2)"><span class="nb-icon">⚔️</span><span class="nb-label">Angriffe</span></button>
+  <button class="nb" id="nb3" onclick="go(3)"><span class="nb-icon">✨</span><span class="nb-label">Zauber</span></button>
+  <button class="nb" id="nb4" onclick="go(4)"><span class="nb-icon">🎒</span><span class="nb-label">Ausrüst.</span></button>
+  <button class="nb" id="nb5" onclick="go(5)"><span class="nb-icon">📜</span><span class="nb-label">Notizen</span></button>
+</div>
+
+<script>
+// ── STATE ──
+var hp=23,temp=0,insp=false,curPage=0,slotEdit=false;
+var exhaustion=0,hdUsed=[];
+var activeSpellIdx=-1;
+var activeCharIdx=0;
+var characters=[];
+
+var exhTexts=['Keine Erschöpfung','Nachteil auf Fähigkeitswürfe','Bewegungsrate halbiert','Nachteil auf Angriffe & Rettungswürfe','Max. HP halbiert','Bewegungsrate = 1,5m','Tod'];
+
+var skills=[
+  {name:"Akrobatik",attr:"Ges",val:"+8",p:2},
+  {name:"Arkane Kunde",attr:"Int",val:"+4",p:0},
+  {name:"Athletik",attr:"Stä",val:"+0",p:0},
+  {name:"Auftreten",attr:"Cha",val:"+5",p:1},
+  {name:"Einschüchtern",attr:"Cha",val:"+4",p:0},
+  {name:"Fingerfertigkeit",attr:"Ges",val:"+5",p:1},
+  {name:"Geschichte",attr:"Int",val:"+4",p:0},
+  {name:"Heilkunde",attr:"Wei",val:"+3",p:0},
+  {name:"Heimlichkeit",attr:"Ges",val:"+5",p:1},
+  {name:"Mit Tieren umgehen",attr:"Wei",val:"+6",p:2},
+  {name:"Motiv erkennen",attr:"Wei",val:"+3",p:0},
+  {name:"Nachforschungen",attr:"Int",val:"+4",p:0},
+  {name:"Naturkunde",attr:"Int",val:"+4",p:0},
+  {name:"Religion",attr:"Int",val:"+4",p:0},
+  {name:"Täuschen",attr:"Cha",val:"+4",p:0},
+  {name:"Überlebenskunst",attr:"Wei",val:"+3",p:0},
+  {name:"Überzeugen",attr:"Cha",val:"+4",p:0},
+  {name:"Wahrnehmung",attr:"Wei",val:"+6",p:1}
+];
+
+var attacks=[
+  {name:"Dolch",bonus:"+6",dmg:"1W4+4",type:"Stich",range:"1,5m/18m"},
+  {name:"Vicious Mockery",bonus:"SG 14",dmg:"2W4",type:"Psychisch",range:"18m"}
+];
+
+var slotDef=[{lv:"Stufe 1",total:4},{lv:"Stufe 2",total:3},{lv:"Stufe 3",total:2},{lv:"Stufe 4",total:0},{lv:"Stufe 5",total:0}];
+var slotUsed=[0,0,0,0,0];
+
+var spells=[
+  {name:"Vicious Mockery",prep:true,lv:0,notes:"",conc:false},
+  {name:"Minor Illusion",prep:true,lv:0,notes:"",conc:false},
+  {name:"Prestidigitation",prep:true,lv:0,notes:"",conc:false},
+  {name:"Charm Person",prep:true,lv:1,notes:"",conc:true},
+  {name:"Healing Word",prep:true,lv:1,notes:"",conc:false},
+  {name:"Thunderwave",prep:false,lv:1,notes:"",conc:false},
+  {name:"Suggestion",prep:true,lv:2,notes:"",conc:true},
+  {name:"Shatter",prep:false,lv:2,notes:"",conc:false}
+];
+
+var items=[{name:"Laute",qty:1},{name:"Dolch",qty:2},{name:"Lederrüstung",qty:1},{name:"Abenteurer-Rucksack",qty:1},{name:"Zauberfokus (Kristall)",qty:1}];
+
+// ── NAV ──
+function go(i){
+  curPage=i;
+  var c=document.getElementById('container');
+  c.scrollLeft=i*c.offsetWidth;
+  for(var n=0;n<6;n++) document.getElementById('nb'+n).className='nb'+(n===i?' on':'');
+}
+
+// ── BARS ──
+function renderBars(){
+  var max=parseInt(document.getElementById('maxHp').value)||1;
+  var pct=Math.max(0,Math.min(100,hp/max*100));
+  var col='#27ae60';
+  if(pct<50)col='#f39c12';if(pct<25)col='#e67e22';if(pct<10)col='#c0392b';
+  document.getElementById('hpFill').style.width=pct+'%';
+  document.getElementById('hpFill').style.background=col;
+  document.getElementById('hpNum').textContent=hp;
+  document.getElementById('tempFill').style.width=temp>0?'100%':'0%';
+  document.getElementById('tempFill').style.background=temp>0?'#3366cc':'transparent';
+  document.getElementById('tempNum').textContent=temp;
+}
+function chHP(dir){
+  var v=parseInt(document.getElementById('hpAmt').value)||0;
+  var mx=parseInt(document.getElementById('maxHp').value)||0;
+  hp=Math.max(0,Math.min(mx,hp+v*dir));
+  renderBars(); autoSave();
+}
+function chTemp(dir){
+  var v=parseInt(document.getElementById('tempAmt').value)||0;
+  temp=Math.max(0,temp+v*dir);
+  renderBars(); autoSave();
+}
+function toggleInsp(){
+  insp=!insp;
+  document.getElementById('inspBtn').className='insp-btn'+(insp?' active':'');
+  autoSave();
+}
+function toggleSave(el){ el.classList.toggle('active'); autoSave(); }
+
+// ── REST CONFIG ──
+var restConfig = {
+  short: {
+    healHD: true,
+    hdCount: 1,
+    healFlat: 0,
+    resetSlots: false
+  },
+  long: {
+    healFull: true,
+    healFlat: 0,
+    resetAllSlots: true,
+    resetHD: true,
+    hdRestoreCount: 0,
+    reduceExhaustion: true,
+    exhaustionReduce: 1
+  }
+};
+
+function rcToggle(key, subkey) {
+  restConfig[key][subkey] = !restConfig[key][subkey];
+  buildRestSettings();
+  autoSave();
+}
+
+function buildRestSettings(){
+  var panel = document.getElementById('restSettingsPanel');
+  if(!panel) return;
+  var sc = restConfig.short;
+  var lc = restConfig.long;
+  var out = '';
+
+  function sec(label) {
+    out += '<div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#c9a84c;padding:14px 0 4px;">' + label + '</div>';
+  }
+  function tog(label, isOn, key) {
+    var bg = isOn ? '#c9a84c' : 'rgba(255,255,255,0.08)';
+    var col = isOn ? '#0d0a07' : '#a08c60';
+    out += '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(201,168,76,0.07);">' +
+      '<span style="flex:1;font-size:15px;color:#f0e6c8;">' + label + '</span>' +
+      '<button data-key="' + key + '" onclick="rsTap(this)" style="width:52px;height:28px;border-radius:14px;border:1px solid rgba(201,168,76,0.3);background:' + bg + ';color:' + col + ';font-size:12px;font-weight:bold;flex-shrink:0;">' + (isOn?'AN':'AUS') + '</button>' +
+      '</div>';
+  }
+  function num(label, val, key, unit) {
+    out += '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(201,168,76,0.07);">' +
+      '<span style="flex:1;font-size:15px;color:#f0e6c8;">' + label + '</span>' +
+      '<input type="number" value="' + val + '" min="0" data-key="' + key + '" oninput="rsNum(this)" style="width:60px;background:rgba(255,255,255,0.07);border:1px solid rgba(201,168,76,0.2);border-radius:8px;color:#f0e6c8;padding:6px;text-align:center;outline:none;font-size:15px;">' +
+      '<span style="font-size:13px;color:#a08c60;flex-shrink:0;">' + (unit||'') + '</span>' +
+      '</div>';
+  }
+
+  sec('☕ Kurzrast');
+  tog('Trefferwürfel zurücksetzen', sc.healHD, 'short.healHD');
+  num('Anzahl Trefferwürfel', sc.hdCount, 'short.hdCount', 'Würfel');
+  num('Pauschal TP zurücksetzen', sc.healFlat, 'short.healFlat', 'TP');
+  tog('Zauberplätze zurücksetzen', sc.resetSlots, 'short.resetSlots');
+
+  sec('🌙 Langrast');
+  tog('Alle HP zurücksetzen', lc.healFull, 'long.healFull');
+  num('Pauschal TP zurücksetzen', lc.healFlat, 'long.healFlat', 'TP');
+  tog('Zauberplätze zurücksetzen', lc.resetAllSlots, 'long.resetAllSlots');
+  tog('Trefferwürfel zurücksetzen', lc.resetHD, 'long.resetHD');
+  num('Anzahl Trefferwürfel', lc.hdRestoreCount, 'long.hdRestoreCount', '(0 = alle)');
+  tog('Erschöpfung zurücksetzen', lc.reduceExhaustion, 'long.reduceExhaustion');
+  num('Erschöpfungsstufen', lc.exhaustionReduce, 'long.exhaustionReduce', 'Stufen');
+
+  panel.innerHTML = out;
+}
+
+function rsTap(btn) {
+  var key = btn.getAttribute('data-key');
+  var parts = key.split('.');
+  var cur = restConfig[parts[0]][parts[1]];
+  var newVal = !cur;
+  restConfig[parts[0]][parts[1]] = newVal;
+  btn.textContent = newVal ? 'AN' : 'AUS';
+  btn.style.background = newVal ? '#c9a84c' : 'rgba(255,255,255,0.08)';
+  btn.style.color = newVal ? '#0d0a07' : '#a08c60';
+  autoSave();
+}
+
+function rsNum(input) {
+  var key = input.getAttribute('data-key');
+  var parts = key.split('.');
+  restConfig[parts[0]][parts[1]] = parseInt(input.value) || 0;
+  autoSave();
+}
+
+// ── RESTS ──
+function shortRest(){
+  var sc=restConfig.short;
+  var messages=[];
+  if(sc.healHD){
+    var type=parseInt(document.getElementById('hdType').value)||8;
+    var count=sc.hdCount||1;
+    var totalHeal=0;
+    for(var c=0;c<count;c++){
+      var available=[];
+      for(var i=0;i<getLevel();i++){ if(hdUsed.indexOf(i)<0) available.push(i); }
+      if(available.length===0) break;
+      hdUsed.push(available[0]);
+      var roll=Math.floor(Math.random()*type)+1;
+      var conBonus=parseInt(document.getElementById('aKONm').value)||0;
+      totalHeal+=Math.max(1,roll+conBonus);
+    }
+    if(totalHeal>0){
+      var mx=parseInt(document.getElementById('maxHp').value)||0;
+      hp=Math.min(mx,hp+totalHeal);
+      messages.push('+'+totalHeal+' TP');
+    } else { messages.push('Keine Würfel mehr'); }
+  }
+  if(sc.healFlat>0){
+    var mx2=parseInt(document.getElementById('maxHp').value)||0;
+    hp=Math.min(mx2,hp+sc.healFlat);
+    messages.push('+'+sc.healFlat+' TP');
+  }
+  if(sc.resetSlots){ for(var i=0;i<slotUsed.length;i++) slotUsed[i]=0; messages.push('Slots zurück'); buildSlots(); }
+  renderBars(); buildHD();
+  toast('☕ '+(messages.join(' · ')||'Kurzrast'));
+  autoSave();
+}
+function longRest(){
+  var lc=restConfig.long;
+  var messages=[];
+  if(lc.healFull){ hp=parseInt(document.getElementById('maxHp').value)||0; temp=0; messages.push('Volle HP'); }
+  if(lc.healFlat>0){ var mx=parseInt(document.getElementById('maxHp').value)||0; hp=Math.min(mx,hp+lc.healFlat); messages.push('+'+lc.healFlat+' TP'); }
+  if(lc.resetAllSlots){ for(var i=0;i<slotUsed.length;i++) slotUsed[i]=0; messages.push('Slots zurück'); buildSlots(); }
+  if(lc.resetHD){
+    var restoreCount=lc.hdRestoreCount||0;
+    if(restoreCount===0){ hdUsed=[]; }
+    else { hdUsed=hdUsed.slice(restoreCount); }
+    messages.push('Würfel zurück'); buildHD();
+  }
+  if(lc.reduceExhaustion){
+    var reduce=lc.exhaustionReduce||1;
+    exhaustion=Math.max(0,exhaustion-reduce);
+    buildExhaustion();
+  }
+  renderBars();
+  toast('🌙 '+(messages.join(' · ')||'Langrast'));
+  autoSave();
+}
+function getLevel(){
+  var sub=document.getElementById('charSub').value||'';
+  var m=sub.match(/level\s*(\d+)/i);
+  return m?parseInt(m[1]):5;
+}
+
+// ── HIT DICE ──
+function buildHD(){
+  var lv=getLevel();
+  var type=document.getElementById('hdType').value||'8';
+  var html='';
+  for(var i=0;i<lv;i++){
+    var used=hdUsed.indexOf(i)>=0;
+    html+='<button class="hd-die'+(used?' used':'')+'" onclick="useHD('+i+')" '+(used?'disabled':'')+'>W'+type+'</button>';
+  }
+  document.getElementById('hdRow').innerHTML=html;
+}
+function useHD(i){
+  if(hdUsed.indexOf(i)>=0) return;
+  hdUsed.push(i);
+  buildHD(); autoSave();
+}
+function resetHD(){ hdUsed=[]; buildHD(); autoSave(); }
+
+// ── EXHAUSTION ──
+function buildExhaustion(){
+  var html='';
+  for(var i=1;i<=6;i++){
+    html+='<button class="exh-pip'+(exhaustion>=i?' active':'')+'" onclick="setExh('+i+')" style="border:none;">'+i+'</button>';
+  }
+  document.getElementById('exhRow').innerHTML=html;
+  document.getElementById('exhLabel').textContent=exhTexts[exhaustion]||'';
+}
+function setExh(i){
+  exhaustion=(exhaustion===i)?i-1:i;
+  buildExhaustion(); autoSave();
+}
+
+// ── SKILLS ──
+function buildSkills(){
+  var html='';
+  for(var i=0;i<skills.length;i++){
+    var s=skills[i];
+    var dc=s.p===2?'skill-dot exp':s.p===1?'skill-dot prof':'skill-dot';
+    html+='<div class="skill-item">'+
+      '<button class="'+dc+'" onclick="cycleProf('+i+')"></button>'+
+      '<span class="skill-name">'+s.name+'</span>'+
+      '<span class="skill-attr">'+s.attr+'</span>'+
+      '<input class="skill-mod" value="'+s.val+'" oninput="skills['+i+'].val=this.value;autoSave()">'+
+      '</div>';
+  }
+  document.getElementById('skillList').innerHTML=html;
+}
+function cycleProf(i){ skills[i].p=(skills[i].p+1)%3; buildSkills(); autoSave(); }
+
+// ── ATTACKS ──
+function buildAtks(){
+  var html='';
+  for(var i=0;i<attacks.length;i++){
+    var a=attacks[i];
+    html+='<div class="atk-card">'+
+      '<div class="atk-header">'+
+        '<input class="atk-name" value="'+a.name+'" oninput="attacks['+i+'].name=this.value;autoSave()">'+
+        '<button class="atk-del" onclick="delAtk('+i+')">✕</button>'+
+      '</div>'+
+      '<div class="atk-grid">'+
+        '<div><span class="atk-field-label">Bonus</span><input class="atk-field-val" value="'+a.bonus+'" oninput="attacks['+i+'].bonus=this.value;autoSave()"></div>'+
+        '<div><span class="atk-field-label">Schaden</span><input class="atk-field-val" value="'+a.dmg+'" oninput="attacks['+i+'].dmg=this.value;autoSave()"></div>'+
+        '<div><span class="atk-field-label">Typ</span><input class="atk-field-val" value="'+a.type+'" oninput="attacks['+i+'].type=this.value;autoSave()"></div>'+
+        '<div><span class="atk-field-label">Reichweite</span><input class="atk-field-val" value="'+(a.range||'')+'" oninput="attacks['+i+'].range=this.value;autoSave()"></div>'+
+      '</div></div>';
+  }
+  document.getElementById('atkList').innerHTML=html;
+}
+function addAtk(){ attacks.push({name:'',bonus:'+0',dmg:'1W6',type:'',range:''}); buildAtks(); }
+function delAtk(i){ attacks.splice(i,1); buildAtks(); autoSave(); }
+
+// ── SPELL SLOTS ──
+function buildSlots(){
+  var html='';
+  for(var i=0;i<slotDef.length;i++){
+    if(slotDef[i].total===0&&!slotEdit) continue;
+    var dots='';
+    for(var d=0;d<slotDef[i].total;d++){
+      var used=d<slotUsed[i];
+      dots+='<button class="slot-dot'+(used?' used':'')+'" onclick="toggleSlotDot('+i+','+d+')"></button>';
+    }
+    html+='<div class="slot-row"><span class="slot-label">'+slotDef[i].lv+'</span><div class="slot-dots">'+dots+'</div></div>';
+  }
+  document.getElementById('spellSlots').innerHTML=html;
+  var ed=document.getElementById('slotEditor');
+  if(slotEdit){
+    var ehtml='<div class="slot-edit-panel">';
+    for(var j=0;j<slotDef.length;j++){
+      ehtml+='<div class="slot-edit-row">'+
+        '<span class="slot-edit-name">'+slotDef[j].lv+'</span>'+
+        '<button class="slot-adj-btn" onclick="adjSlot('+j+',-1)">−</button>'+
+        '<span class="slot-count">'+slotDef[j].total+'</span>'+
+        '<button class="slot-adj-btn" onclick="adjSlot('+j+',1)">+</button>'+
+        '<button class="slot-reset-btn" onclick="resetSlot('+j+')">↺</button>'+
+        '</div>';
+    }
+    ehtml+='</div>';
+    ed.innerHTML=ehtml; ed.style.display='block';
+  } else { ed.style.display='none'; }
+}
+function toggleSlotDot(si,d){ slotUsed[si]=d<slotUsed[si]?slotUsed[si]-1:slotUsed[si]+1; buildSlots(); autoSave(); }
+function adjSlot(si,dir){ slotDef[si].total=Math.max(0,Math.min(9,slotDef[si].total+dir)); if(slotUsed[si]>slotDef[si].total)slotUsed[si]=slotDef[si].total; buildSlots(); autoSave(); }
+function resetSlot(si){ slotUsed[si]=0; buildSlots(); autoSave(); }
+function toggleSlotEdit(){ slotEdit=!slotEdit; var btn=document.getElementById('slotEditBtn'); btn.style.color=slotEdit?'var(--gold)':''; btn.style.background=slotEdit?'rgba(201,168,76,0.2)':''; buildSlots(); }
+
+// ── SPELLS ──
+function buildSpells(){
+  var groups={};
+  for(var i=0;i<spells.length;i++){
+    var k=spells[i].lv;
+    if(!groups[k]) groups[k]=[];
+    groups[k].push(i);
+  }
+  var levels=Object.keys(groups).map(Number).sort(function(a,b){return a-b;});
+  var html='';
+  for(var li=0;li<levels.length;li++){
+    var lv=levels[li];
+    var label=lv===0?'Zaubertricks':'Stufe '+lv;
+    html+='<div class="spell-section"><div class="spell-sec-header"><span class="spell-sec-title">'+label+'</span><span class="spell-sec-count">'+groups[lv].length+' Zauber</span></div>';
+    var idxs=groups[lv];
+    for(var gi=0;gi<idxs.length;gi++){
+      var idx=idxs[gi];
+      var sp=spells[idx];
+      var opts='';
+      for(var ol=0;ol<=9;ol++) opts+='<option value="'+ol+'"'+(sp.lv===ol?' selected':'')+'>'+(ol===0?'ST':ol)+'</option>';
+      html+='<div class="spell-row">'+
+        '<button class="spell-prep-btn'+(sp.prep?' active':'')+'" onclick="togglePrep('+idx+')"></button>'+
+        '<button class="spell-name-btn" onclick="openSpellModal('+idx+')">'+(sp.name||'Unbenannt')+(sp.conc?' <span class="spell-conc">K</span>':'')+(sp.notes?'  <span style="color:var(--gold-dim);font-size:11px;">✎</span>':'')+'</button>'+
+        '<select class="spell-lvl-sel" onchange="spells['+idx+'].lv=parseInt(this.value);buildSpells();autoSave()">'+opts+'</select>'+
+        '<button class="spell-del" onclick="delSpell('+idx+')">✕</button>'+
+        '</div>';
+    }
+    html+='</div>';
+  }
+  document.getElementById('spellList').innerHTML=html;
+}
+function togglePrep(i){ spells[i].prep=!spells[i].prep; buildSpells(); autoSave(); }
+function addSpell(){ spells.push({name:'',prep:false,lv:1,notes:'',conc:false}); buildSpells(); }
+function delSpell(i){ spells.splice(i,1); buildSpells(); autoSave(); }
+
+// ── SPELL MODAL ──
+function openSpellModal(i){
+  activeSpellIdx=i;
+  var sp=spells[i];
+  var lvLabel=sp.lv===0?'Zaubertrick':'Stufe '+sp.lv;
+
+  // Build modal content dynamically
+  var modal=document.querySelector('#spellModal .modal');
+  modal.innerHTML=
+    '<button class="modal-close" onclick="closeSpellModalDirect()">✕</button>'+
+
+    // Name input
+    '<div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#a08c60;margin-bottom:4px;">Zaubername</div>'+
+    '<input id="modalSpellNameInput" value="'+(sp.name||'')+'" placeholder="Zaubername..." '+
+      'oninput="if(activeSpellIdx>=0){spells[activeSpellIdx].name=this.value;}" '+
+      'style="width:100%;font-size:20px;font-weight:bold;color:#e8cc7a;background:transparent;border:none;border-bottom:1px solid rgba(201,168,76,0.3);outline:none;padding:4px 0 6px;margin-bottom:14px;font-family:Georgia,serif;">'+
+
+    // Level + concentration row
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">'+
+      '<span style="font-size:13px;color:#a08c60;flex-shrink:0;">Stufe</span>'+
+      '<select id="modalLvlSel" onchange="if(activeSpellIdx>=0){spells[activeSpellIdx].lv=parseInt(this.value);}" '+
+        'style="background:rgba(255,255,255,0.07);border:1px solid rgba(201,168,76,0.2);border-radius:8px;color:#f0e6c8;padding:4px 8px;font-size:14px;outline:none;font-family:Georgia,serif;">'+
+        [0,1,2,3,4,5,6,7,8,9].map(function(l){ return '<option value="'+l+'"'+(sp.lv===l?' selected':'')+'>'+( l===0?'Zaubertrick':'Stufe '+l)+'</option>'; }).join('')+
+      '</select>'+
+      '<div style="flex:1;"></div>'+
+      '<span style="font-size:13px;color:#a08c60;margin-right:6px;">Konz.</span>'+
+      '<button id="modalConcBtn" data-idx="'+i+'" onclick="toggleModalConc(this)" '+
+        'style="width:52px;height:28px;border-radius:14px;border:1px solid rgba(201,168,76,0.3);'+
+        'background:'+(sp.conc?'#c9a84c':'rgba(255,255,255,0.08)')+';'+
+        'color:'+(sp.conc?'#0d0a07':'#a08c60')+';font-size:12px;font-weight:bold;">'+
+        (sp.conc?'AN':'AUS')+
+      '</button>'+
+    '</div>'+
+
+    // Notes
+    '<div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#a08c60;margin-bottom:6px;">Notizen</div>'+
+    '<textarea id="modalSpellNotes" placeholder="Reichweite, Dauer, Beschreibung..." '+
+      'oninput="if(activeSpellIdx>=0){spells[activeSpellIdx].notes=this.value;autoSave();}" '+
+      'style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.15);border-radius:10px;color:#f0e6c8;font-size:15px;line-height:1.8;padding:12px;resize:none;min-height:120px;outline:none;font-family:Georgia,serif;">'+(sp.notes||'')+'</textarea>'+
+    '<div id="modalRestSettings" style="display:none;"></div>'+
+    '<button class="modal-save" id="modalSaveBtn" onclick="closeSpellModalDirect()">✓ Fertig</button>';
+
+  document.getElementById('spellModal').classList.add('show');
+}
+
+function toggleModalConc(btn) {
+  if(activeSpellIdx<0) return;
+  var newVal=!spells[activeSpellIdx].conc;
+  spells[activeSpellIdx].conc=newVal;
+  btn.textContent=newVal?'AN':'AUS';
+  btn.style.background=newVal?'#c9a84c':'rgba(255,255,255,0.08)';
+  btn.style.color=newVal?'#0d0a07':'#a08c60';
+  autoSave();
+}
+function saveSpellNote(){
+  if(activeSpellIdx>=0){
+    var n=document.getElementById('modalSpellNotes');
+    if(n) spells[activeSpellIdx].notes=n.value;
+    autoSave();
+  }
+}
+function closeSpellModal(e){ if(e.target===document.getElementById('spellModal')) closeSpellModalDirect(); }
+function closeSpellModalDirect(){
+  document.getElementById('spellModal').classList.remove('show');
+  buildSpells();
+  activeSpellIdx=-1;
+}
+
+// ── ITEMS ──
+function buildItems(){
+  var html='';
+  for(var i=0;i<items.length;i++){
+    html+='<div class="item-row">'+
+      '<input class="item-name-in" value="'+items[i].name+'" oninput="items['+i+'].name=this.value;autoSave()">'+
+      '<input class="item-qty-in" type="number" value="'+items[i].qty+'" min="0" oninput="items['+i+'].qty=parseInt(this.value)||0;autoSave()">'+
+      '<button class="item-del" onclick="delItem('+i+')">✕</button>'+
+      '</div>';
+  }
+  document.getElementById('itemList').innerHTML=html;
+}
+function addItem(){ items.push({name:'',qty:1}); buildItems(); }
+function delItem(i){ items.splice(i,1); buildItems(); autoSave(); }
+
+// ── TOAST ──
+function toast(msg){ var t=document.getElementById('toast'); t.textContent=msg; t.className='show'; setTimeout(function(){ t.className=''; },2400); }
+
+// ── QR CODE ──
+function showQR(){
+  // Compress: strip large notes for sharing, keep essentials
+  var data = gather();
+  var code = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+  document.getElementById('shareCodeArea').value = code;
+  document.getElementById('importCodeArea').value = '';
+  document.getElementById('qrModal').classList.add('show');
+}
+function copyShareCode(){
+  var area = document.getElementById('shareCodeArea');
+  area.select();
+  try {
+    document.execCommand('copy');
+    toast('📋 Code kopiert!');
+  } catch(e) {
+    // iOS fallback
+    var range = document.createRange();
+    range.selectNode(area);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+    toast('Code markiert — lange drücken und kopieren');
+  }
+}
+function importShareCode(){
+  var code = document.getElementById('importCodeArea').value.trim();
+  if(!code){ toast('⚠ Kein Code eingegeben'); return; }
+  try {
+    var data = JSON.parse(decodeURIComponent(escape(atob(code))));
+    applyData(data);
+    closeQrModalDirect();
+    toast('✦ Charakter geladen');
+  } catch(e) {
+    toast('⚠ Ungültiger Code');
+  }
+}
+function closeQrModal(e){ if(e.target===document.getElementById('qrModal')) closeQrModalDirect(); }
+function closeQrModalDirect(){ document.getElementById('qrModal').classList.remove('show'); }
+function printChar(){
+  closeQrModalDirect();
+  // Open the page in a real Safari tab where printing works
+  var blob = new Blob([document.documentElement.outerHTML], {type:'text/html'});
+  var url = URL.createObjectURL(blob);
+  window.open(url, '_blank');
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 10000);
+  toast('Im neuen Tab: Teilen → Als PDF sichern');
+}
+
+// ── MULTIPLE CHARACTERS ──
+function buildCharSwitcher(){
+  var html='';
+  for(var i=0;i<characters.length;i++){
+    html+='<button class="char-tab'+(i===activeCharIdx?' active':'')+'" onclick="switchChar('+i+')">'+
+      (characters[i].charName||'Charakter '+(i+1))+'</button>';
+  }
+  html+='<button class="char-tab add-char" onclick="newChar()">+ Neu</button>';
+  document.getElementById('charSwitcher').innerHTML=html;
+}
+function switchChar(i){
+  if(i===activeCharIdx) return;
+  characters[activeCharIdx]=gather();
+  activeCharIdx=i;
+  applyData(characters[i]);
+  buildCharSwitcher();
+  toast('Charakter gewechselt');
+}
+function newChar(){
+  characters[activeCharIdx]=gather();
+  var blank={charName:'Neuer Charakter',charSub:'Klasse · Level 1 · Rasse',hp:10,temp:0,insp:false,maxHp:'10',profBonus:'+2',passPerc:'10',spells:[],attacks:[],items:[],skills:skills.map(function(s){return{name:s.name,attr:s.attr,val:'0',p:0};})};
+  characters.push(blank);
+  activeCharIdx=characters.length-1;
+  applyData(blank);
+  buildCharSwitcher();
+  toast('Neuer Charakter erstellt');
+}
+
+// ── GATHER / APPLY ──
+function gather(){
+  function v(id){ var e=document.getElementById(id); return e?e.value:''; }
+  return {
+    charName:v('charName'),charSub:v('charSub'),
+    statRK:v('statRK'),statINI:v('statINI'),statBEW:v('statBEW'),
+    hp:hp,temp:temp,insp:insp,
+    maxHp:v('maxHp'),profBonus:v('profBonus'),passPerc:v('passPerc'),
+    aSTAm:v('aSTAm'),aSTAv:v('aSTAv'),aGESm:v('aGESm'),aGESv:v('aGESv'),
+    aKONm:v('aKONm'),aKONv:v('aKONv'),aINTm:v('aINTm'),aINTv:v('aINTv'),
+    aWEIm:v('aWEIm'),aWEIv:v('aWEIv'),aCHAm:v('aCHAm'),aCHAv:v('aCHAv'),
+    saves:Array.from(document.querySelectorAll('#savesGrid .tile')).map(function(t){ return{active:t.classList.contains('active'),val:t.querySelector('.editable').value}; }),
+    deaths:{
+      s:Array.from(document.querySelectorAll('.d-tile')).slice(0,3).map(function(b){return b.classList.contains('s-active');}),
+      f:Array.from(document.querySelectorAll('.d-tile')).slice(3,6).map(function(b){return b.classList.contains('f-active');})
+    },
+    exhaustion:exhaustion,hdUsed:hdUsed.slice(),hdType:v('hdType'),
+    skills:skills.map(function(s){return{name:s.name,attr:s.attr,val:s.val,p:s.p};}),
+    attacks:attacks.map(function(a){return{name:a.name,bonus:a.bonus,dmg:a.dmg,type:a.type,range:a.range};}),
+    slotDef:slotDef.map(function(s){return{lv:s.lv,total:s.total};}),
+    slotUsed:slotUsed.slice(),
+    spellDC:v('spellDC'),spellAtk:v('spellAtk'),
+    spells:spells.map(function(s){return{name:s.name,prep:s.prep,lv:s.lv,notes:s.notes||'',conc:s.conc||false};}),
+    coins:{KM:v('cKM'),SM:v('cSM'),EM:v('cEM'),GM:v('cGM'),PM:v('cPM')},
+    items:items.map(function(i){return{name:i.name,qty:i.qty};}),
+    classFeatures:v('classFeatures'),
+    noteBG:v('noteBG'),noteLang:v('noteLang'),noteSession:v('noteSession'),
+    characters:characters,activeCharIdx:activeCharIdx,
+    restConfig:restConfig
+  };
+}
+
+function applyData(d){
+  function s(id,val){ var e=document.getElementById(id); if(e&&val!=null) e.value=val; }
+  s('charName',d.charName);s('charSub',d.charSub);
+  s('statRK',d.statRK);s('statINI',d.statINI);s('statBEW',d.statBEW);
+  hp=d.hp||23;temp=d.temp||0;insp=d.insp||false;
+  s('maxHp',d.maxHp);s('profBonus',d.profBonus);s('passPerc',d.passPerc);
+  s('aSTAm',d.aSTAm);s('aSTAv',d.aSTAv);s('aGESm',d.aGESm);s('aGESv',d.aGESv);
+  s('aKONm',d.aKONm);s('aKONv',d.aKONv);s('aINTm',d.aINTm);s('aINTv',d.aINTv);
+  s('aWEIm',d.aWEIm);s('aWEIv',d.aWEIv);s('aCHAm',d.aCHAm);s('aCHAv',d.aCHAv);
+  document.getElementById('inspBtn').className='insp-btn'+(insp?' active':'');
+  if(d.saves){ var tiles=document.querySelectorAll('#savesGrid .tile'); for(var i=0;i<tiles.length;i++){ tiles[i].classList.toggle('active',d.saves[i]&&d.saves[i].active); if(d.saves[i]) tiles[i].querySelector('.editable').value=d.saves[i].val; } }
+  if(d.deaths){ var dt=document.querySelectorAll('.d-tile'); for(var i=0;i<3;i++)dt[i].classList.toggle('s-active',d.deaths.s&&d.deaths.s[i]); for(var i=0;i<3;i++)dt[i+3].classList.toggle('f-active',d.deaths.f&&d.deaths.f[i]); }
+  exhaustion=d.exhaustion||0;
+  hdUsed=d.hdUsed||[];
+  if(d.hdType) s('hdType',d.hdType);
+  if(d.skills) d.skills.forEach(function(sk,i){ if(skills[i]){skills[i].val=sk.val;skills[i].p=sk.p;} });
+  if(d.attacks){ attacks.length=0; d.attacks.forEach(function(a){attacks.push(a);}); }
+  if(d.slotDef) d.slotDef.forEach(function(sd,i){ if(slotDef[i])slotDef[i].total=sd.total; });
+  if(d.slotUsed) d.slotUsed.forEach(function(u,i){ slotUsed[i]=u; });
+  s('spellDC',d.spellDC);s('spellAtk',d.spellAtk);
+  if(d.spells){ spells.length=0; d.spells.forEach(function(sp){spells.push({name:sp.name,prep:sp.prep,lv:sp.lv,notes:sp.notes||'',conc:sp.conc||false});}); }
+  if(d.coins){s('cKM',d.coins.KM);s('cSM',d.coins.SM);s('cEM',d.coins.EM);s('cGM',d.coins.GM);s('cPM',d.coins.PM);}
+  if(d.items){ items.length=0; d.items.forEach(function(i){items.push(i);}); }
+  s('classFeatures',d.classFeatures);s('noteBG',d.noteBG);s('noteLang',d.noteLang);s('noteSession',d.noteSession);
+  if(d.characters){ characters=d.characters; activeCharIdx=d.activeCharIdx||0; }
+  if(d.restConfig){ restConfig=d.restConfig; }
+  renderBars();buildSkills();buildAtks();buildSlots();buildSpells();buildItems();buildHD();buildExhaustion();buildCharSwitcher();buildRestSettings();
+}
+
+// ── AUTO SAVE ──
+function autoSave(){
+  try{ localStorage.setItem('dnd_autosave',JSON.stringify(gather())); }catch(e){}
+}
+function autoLoad(){
+  try{
+    // Check URL param first (QR share)
+    var params=new URLSearchParams(window.location.search);
+    var charParam=params.get('char');
+    if(charParam){ applyData(JSON.parse(decodeURIComponent(charParam))); return true; }
+    var raw=localStorage.getItem('dnd_autosave');
+    if(raw){ applyData(JSON.parse(raw)); return true; }
+  }catch(e){}
+  return false;
+}
+
+// ── SAVE / LOAD ──
+async function saveChar(){
+  characters[activeCharIdx]=gather();
+  autoSave();
+  var name=(document.getElementById('charName').value||'charakter').replace(/\s+/g,'_');
+  var json=JSON.stringify(gather(),null,2);
+  if(window.showSaveFilePicker){
+    try{
+      var fh=await window.showSaveFilePicker({suggestedName:name+'.json',types:[{description:'JSON',accept:{'application/json':['.json']}}]});
+      var w=await fh.createWritable(); await w.write(json); await w.close();
+      toast('✦ Gespeichert');
+    }catch(e){ if(e.name!=='AbortError') fallbackSave(name,json); }
+  } else { fallbackSave(name,json); }
+}
+function fallbackSave(name,json){
+  var blob=new Blob([json],{type:'application/json'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a'); a.href=url; a.download=name+'.json'; a.click();
+  URL.revokeObjectURL(url);
+  toast('✦ Gespeichert');
+}
+function loadChar(){ document.getElementById('fileIn').click(); }
+function importFile(e){
+  var file=e.target.files[0]; if(!file) return;
+  var r=new FileReader();
+  r.onload=function(ev){ try{ applyData(JSON.parse(ev.target.result)); toast('✦ Geladen'); }catch(err){ toast('⚠ Fehler'); } };
+  r.readAsText(file); e.target.value='';
+}
+
+// ── INIT ──
+renderBars();buildSkills();buildAtks();buildSlots();buildSpells();buildItems();buildHD();buildExhaustion();buildRestSettings();
+characters=[gather()];
+buildCharSwitcher();
+
+if(!autoLoad()){
+  renderBars();
+}
+
+// Auto-save on any interaction
+document.addEventListener('input',function(){ clearTimeout(window._st); window._st=setTimeout(autoSave,800); });
+document.addEventListener('click',function(){ clearTimeout(window._st); window._st=setTimeout(autoSave,800); });
+</script>
+</body>
+</html>
