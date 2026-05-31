@@ -1,0 +1,2110 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>D&D Charakterbogen</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="D&D Bogen">
+<meta name="theme-color" content="#0d0a07">
+<style>
+:root {
+  --gold: #c9a84c;
+  --fs0: 17px; --fs1: 17px; --fs2: 17px; --fs3: 17px; --fs4: 17px; --fs5: 17px;
+  --gold-light: #e8cc7a;
+  --gold-dim: #7a6230;
+  --red: #c0392b;
+  --green: #27ae60;
+  --blue: #3366cc;
+  --text-main: #f0e6c8;
+  --text-dim: #a08c60;
+  --text-bright: #fff8e8;
+  --card-bg: rgba(42,31,14,0.92);
+  --card-border: rgba(201,168,76,0.3);
+  --bg: #0d0a07;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html { height: 100%; }
+body { height: 100vh; font-family: Georgia, serif; font-size: 16px; background: var(--bg); color: var(--text-main); overflow: hidden; }
+button { font-family: Georgia, serif; touch-action: manipulation; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+input, textarea, select { font-family: Georgia, serif; -webkit-appearance: none; }
+input[type=number] { -moz-appearance: textfield; }
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
+
+/* LAYOUT */
+#outer { position: fixed; top:0; left:0; right:0; bottom:0; overflow: hidden; background: linear-gradient(160deg,#0d0a07,#160e04,#0a0704); }
+#container { display:flex; height:100%; width:100%; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; scroll-snap-type:x mandatory; scrollbar-width:none; }
+#container::-webkit-scrollbar { display:none; }
+.page { flex:0 0 100vw; width:100vw; height:100%; overflow-y:auto; overflow-x:hidden; scroll-snap-align:start; padding:28px 14px 80px; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+.page::-webkit-scrollbar { display:none; }
+
+/* HEADER */
+.page-header { text-align:center; margin-bottom:16px; padding-bottom:10px; border-bottom:1px solid rgba(201,168,76,0.25); }
+.page-title { font-size:13px; letter-spacing:4px; color:var(--gold); text-transform:uppercase; }
+
+/* TABS */
+.tab-bar { display:flex; gap:0; margin-bottom:14px; background:rgba(0,0,0,0.3); border-radius:10px; padding:3px; border:1px solid rgba(201,168,76,0.15); }
+.tab-btn { flex:1; padding:8px 4px; border:none; background:transparent; color:var(--text-dim); font-size:11px; letter-spacing:1.5px; text-transform:uppercase; border-radius:8px; transition:all 0.2s; font-family:Georgia,serif; }
+.tab-btn.active { background:rgba(201,168,76,0.18); color:var(--gold); }
+
+/* CARD */
+.card { background:var(--card-bg); border:1px solid rgba(201,168,76,0.35); border-radius:12px; padding:14px; margin-bottom:14px; box-shadow:0 2px 12px rgba(0,0,0,0.4), inset 0 1px 0 rgba(201,168,76,0.08); }
+.card-title { font-size:11px; letter-spacing:3px; color:var(--gold); text-transform:uppercase; margin-bottom:12px; text-align:center; }
+
+/* GRID */
+.grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+
+/* TILE */
+.tile { background:rgba(255,255,255,0.04); border:1px solid rgba(201,168,76,0.15); border-radius:10px; padding:10px 6px; text-align:center; display:block; width:100%; color:var(--text-main); }
+.tile.active { background:rgba(201,168,76,0.18); border-color:var(--gold); }
+.tile-label { font-size:9px; letter-spacing:2px; color:var(--text-dim); text-transform:uppercase; margin-bottom:4px; display:block; }
+
+/* INPUTS */
+input, textarea { color:var(--text-main); background:transparent; border:none; outline:none; }
+.editable { font-size:22px; font-weight:700; width:70px; text-align:center; border-bottom:1px solid rgba(201,168,76,0.2); display:block; margin:0 auto; color:var(--text-bright); }
+.score-input { font-size:12px; width:40px; text-align:center; color:var(--text-dim); border-bottom:1px solid rgba(201,168,76,0.1); display:block; margin:2px auto 0; }
+
+/* CHAR */
+.char-name { font-size:24px; font-weight:700; color:var(--gold-light); text-align:center; width:100%; border-bottom:1px solid rgba(201,168,76,0.2); padding:4px; margin-bottom:6px; display:block; }
+.char-sub { font-size:14px; color:var(--text-dim); font-style:italic; text-align:center; width:100%; border-bottom:1px solid rgba(201,168,76,0.1); padding:2px; display:block; }
+.stats-row { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:10px; }
+.stat-box { background:rgba(255,255,255,0.04); border:1px solid var(--card-border); border-radius:10px; padding:8px 4px; text-align:center; }
+.stat-label { font-size:8px; letter-spacing:2px; color:var(--text-dim); text-transform:uppercase; display:block; margin-bottom:4px; }
+.stat-val { font-size:18px; color:var(--gold-light); width:100%; text-align:center; background:transparent; border:none; outline:none; }
+
+/* HP */
+.hp-row { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px; }
+.hp-label-text { font-size:10px; letter-spacing:2px; color:var(--text-dim); text-transform:uppercase; }
+.hp-number { font-size:26px; font-weight:bold; color:var(--text-bright); }
+.hp-max-in { font-size:14px; color:var(--text-dim); width:40px; text-align:center; border-bottom:1px solid rgba(201,168,76,0.2); background:transparent; outline:none; }
+.hp-sep { color:var(--text-dim); margin:0 2px; }
+.bar-wrap { margin-bottom:14px; }
+.bar { width:100%; height:14px; background:rgba(255,255,255,0.07); border-radius:7px; overflow:hidden; border:1px solid rgba(255,255,255,0.06); }
+.fill { height:100%; border-radius:7px; width:0%; transition:width 0.4s,background 0.4s; }
+.hp-ctrl { display:flex; align-items:center; justify-content:center; gap:10px; margin-top:8px; }
+.hp-btn { width:40px; height:40px; border-radius:50%; border:1px solid rgba(201,168,76,0.3); background:rgba(255,255,255,0.06); color:var(--text-main); font-size:22px; display:flex; align-items:center; justify-content:center; }
+.hp-in { width:60px; text-align:center; font-size:18px; background:rgba(255,255,255,0.07); border:1px solid rgba(201,168,76,0.2); border-radius:8px; color:var(--text-main); padding:6px; outline:none; }
+
+/* INSPIRATION */
+.insp-btn { display:flex; align-items:center; justify-content:space-between; width:100%; padding:10px 14px; background:rgba(255,255,255,0.03); border:1px solid rgba(201,168,76,0.15); border-radius:10px; margin-bottom:10px; color:var(--text-dim); }
+.insp-btn.active { background:rgba(201,168,76,0.12); border-color:var(--gold); }
+.insp-label { font-size:11px; letter-spacing:2px; text-transform:uppercase; }
+.insp-gem { width:22px; height:22px; border-radius:50%; border:2px solid var(--gold-dim); transition:all 0.2s; }
+.insp-btn.active .insp-gem { background:var(--gold); border-color:var(--gold); }
+
+/* PROF */
+.prof-row { display:flex; align-items:center; background:rgba(201,168,76,0.07); border:1px solid rgba(201,168,76,0.2); border-radius:10px; padding:8px 14px; margin-bottom:12px; gap:8px; }
+.prof-label { font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--text-dim); display:block; }
+.prof-in { font-size:20px; color:var(--gold); width:44px; text-align:center; border-bottom:1px solid rgba(201,168,76,0.2); background:transparent; outline:none; }
+
+/* EXHAUSTION */
+.exh-row { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.exh-pip { width:32px; height:32px; border-radius:50%; border:1.5px solid rgba(201,168,76,0.25); background:rgba(255,255,255,0.04); font-size:11px; color:var(--text-dim); display:flex; align-items:center; justify-content:center; font-weight:bold; }
+.exh-pip.active { background:rgba(192,57,43,0.5); border-color:var(--red); color:#fff; }
+.exh-label { font-size:12px; color:var(--text-dim); margin-top:6px; font-style:italic; min-height:18px; }
+
+/* HIT DICE */
+.hd-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.hd-die { background:rgba(255,255,255,0.05); border:1px solid rgba(201,168,76,0.2); border-radius:8px; padding:6px 10px; font-size:14px; color:var(--text-dim); }
+.hd-die.used { background:rgba(192,57,43,0.15); border-color:rgba(192,57,43,0.3); color:rgba(192,57,43,0.7); text-decoration:line-through; }
+
+/* DEATH */
+.death-label { font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--text-dim); margin-bottom:5px; }
+.death-row { display:flex; gap:8px; margin-bottom:10px; }
+.d-tile { flex:1; height:26px; border-radius:6px; border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.04); }
+.d-tile.s-active { background:rgba(39,174,96,0.5); border-color:var(--green); }
+.d-tile.f-active { background:rgba(192,57,43,0.5); border-color:var(--red); }
+
+/* REST BUTTONS */
+.rest-row { display:flex; gap:8px; margin-top:10px; }
+.rest-btn { flex:1; padding:10px 6px; border-radius:10px; border:1px solid rgba(201,168,76,0.25); background:rgba(255,255,255,0.04); color:var(--text-dim); font-size:13px; letter-spacing:1px; }
+.rest-btn.short { border-color:rgba(201,168,76,0.3); color:var(--gold); background:rgba(201,168,76,0.08); }
+.rest-btn.long { border-color:rgba(39,174,96,0.4); color:#5dba7d; background:rgba(39,174,96,0.08); }
+
+/* SKILLS */
+.skill-item { display:flex; align-items:center; padding:10px; border-bottom:1px solid rgba(201,168,76,0.07); gap:10px; }
+.skill-item:last-child { border-bottom:none; }
+.skill-dot { width:18px; height:18px; border-radius:50%; border:1.5px solid var(--gold-dim); background:transparent; flex-shrink:0; display:block; position:relative; }
+.skill-dot.prof { background:var(--gold); border-color:var(--gold); }
+.skill-dot.exp { background:linear-gradient(135deg,#fff8c0 0%,#e8cc7a 30%,#fff 50%,#c9a84c 70%,#fff8c0 100%); background-size:200% 200%; border-color:#fff8c0; border-width:2px; box-shadow:0 0 8px 2px rgba(232,204,122,0.9),0 0 16px 4px rgba(201,168,76,0.5); animation:shimmer 1.8s ease-in-out infinite; }
+@keyframes shimmer { 0%{background-position:0% 0%;box-shadow:0 0 8px 2px rgba(232,204,122,0.9),0 0 16px 4px rgba(201,168,76,0.5);}50%{background-position:100% 100%;box-shadow:0 0 14px 4px rgba(255,248,180,1),0 0 24px 8px rgba(201,168,76,0.8);}100%{background-position:0% 0%;box-shadow:0 0 8px 2px rgba(232,204,122,0.9),0 0 16px 4px rgba(201,168,76,0.5);} }
+.skill-name { flex:1; font-size:15px; }
+.skill-attr { font-size:11px; color:var(--text-dim); font-style:italic; }
+.skill-mod { font-size:15px; color:var(--gold); font-weight:bold; width:42px; text-align:right; border-bottom:1px solid rgba(201,168,76,0.15); background:transparent; outline:none; color:var(--gold); }
+
+/* ATTACKS */
+.atk-card { background:rgba(255,255,255,0.03); border:1px solid rgba(201,168,76,0.12); border-radius:10px; padding:12px; margin-bottom:8px; }
+.atk-header { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+.atk-name { flex:1; font-size:14px; color:var(--gold-light); border-bottom:1px solid rgba(201,168,76,0.2); background:transparent; outline:none; }
+.atk-del { background:none; border:1px solid rgba(192,57,43,0.3); border-radius:6px; color:var(--red); font-size:15px; padding:2px 8px; opacity:0.7; }
+.atk-grid { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:6px; }
+.atk-field-label { font-size:8px; letter-spacing:1px; color:var(--text-dim); text-align:center; display:block; margin-bottom:2px; text-transform:uppercase; }
+.atk-field-val { width:100%; text-align:center; font-size:14px; background:rgba(255,255,255,0.05); border:1px solid rgba(201,168,76,0.1); border-radius:6px; padding:5px; color:var(--text-main); display:block; outline:none; }
+
+/* ADD BTN */
+.add-btn { width:100%; padding:11px; background:rgba(201,168,76,0.07); border:1px dashed var(--gold-dim); border-radius:10px; color:var(--text-dim); font-size:12px; letter-spacing:2px; text-transform:uppercase; margin-top:4px; }
+
+/* SPELLS */
+.spell-dc-row { display:flex; gap:8px; justify-content:center; margin-bottom:14px; }
+.spell-dc-tile { background:rgba(255,255,255,0.04); border:1px solid var(--card-border); border-radius:10px; padding:8px 14px; text-align:center; }
+.spell-dc-label { font-size:9px; letter-spacing:2px; color:var(--text-dim); text-transform:uppercase; display:block; margin-bottom:2px; }
+.spell-dc-val { font-size:20px; color:var(--gold); width:54px; text-align:center; border:none; background:transparent; outline:none; }
+.slot-row { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+.slot-label { font-size:11px; color:var(--text-dim); width:60px; flex-shrink:0; }
+.slot-dots { display:flex; gap:5px; flex:1; }
+.slot-dot { width:24px; height:24px; border-radius:50%; border:1px solid rgba(201,168,76,0.25); background:rgba(201,168,76,0.65); flex-shrink:0; }
+.slot-dot.used { background:rgba(201,168,76,0.1); }
+.slot-edit-btn { background:rgba(201,168,76,0.1); border:1px solid rgba(201,168,76,0.3); border-radius:8px; color:var(--text-dim); font-size:9px; letter-spacing:1px; padding:4px 10px; }
+.slot-edit-panel { margin-top:8px; background:rgba(255,255,255,0.03); border:1px solid rgba(201,168,76,0.12); border-radius:10px; padding:10px; }
+.slot-edit-row { display:flex; align-items:center; gap:10px; padding:5px 0; border-bottom:1px solid rgba(201,168,76,0.06); }
+.slot-edit-row:last-child { border-bottom:none; }
+.slot-edit-name { font-size:11px; color:var(--text-dim); width:56px; flex-shrink:0; }
+.slot-adj-btn { width:28px; height:28px; border-radius:50%; border:1px solid rgba(201,168,76,0.2); background:rgba(255,255,255,0.05); color:var(--text-main); font-size:18px; display:flex; align-items:center; justify-content:center; }
+.slot-count { font-size:18px; color:var(--gold); width:24px; text-align:center; }
+.slot-reset-btn { margin-left:auto; background:rgba(39,174,96,0.1); border:1px solid rgba(39,174,96,0.3); border-radius:6px; color:#27ae60; font-size:11px; padding:3px 8px; }
+.spell-section { margin-bottom:4px; }
+.spell-sec-header { display:flex; justify-content:space-between; align-items:center; padding:7px 12px; background:rgba(201,168,76,0.06); border-bottom:1px solid rgba(201,168,76,0.12); }
+.spell-sec-title { font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--gold); }
+.spell-sec-count { font-size:10px; color:var(--text-dim); }
+.spell-row { display:flex; align-items:center; gap:8px; padding:9px 10px; border-bottom:1px solid rgba(201,168,76,0.07); }
+.spell-row:last-child { border-bottom:none; }
+.spell-prep-btn { width:14px; height:14px; border:1.5px solid var(--gold-dim); border-radius:3px; background:transparent; flex-shrink:0; }
+.spell-prep-btn.active { background:var(--gold); border-color:var(--gold); }
+.spell-name-btn { flex:1; background:none; border:none; text-align:left; color:var(--text-main); font-size:14px; padding:0; border-bottom:1px solid rgba(201,168,76,0.08); }
+.spell-conc { font-size:10px; color:rgba(100,160,255,0.8); flex-shrink:0; }
+.spell-lvl-sel { background:rgba(30,20,8,0.9); border:none; border-bottom:1px solid rgba(201,168,76,0.15); color:var(--text-dim); font-size:12px; width:52px; text-align:center; font-family:Georgia,serif; padding:2px; outline:none; }
+.spell-del { background:none; border:none; color:var(--red); font-size:14px; opacity:0.4; padding:0 4px; }
+
+/* INVENTORY */
+.coins-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-bottom:14px; }
+.coin-tile { background:rgba(255,255,255,0.04); border:1px solid rgba(201,168,76,0.12); border-radius:10px; padding:8px 4px; text-align:center; }
+.coin-label { font-size:10px; letter-spacing:1px; display:block; margin-bottom:4px; }
+.kp{color:#b87333;}.sp{color:#aaa;}.ep{color:#e8cc7a;}.gp{color:#ffd700;}.pp{color:#b0c4de;}
+.coin-in { font-size:17px; width:100%; text-align:center; border-bottom:1px solid rgba(201,168,76,0.15); color:var(--text-main); background:transparent; outline:none; }
+.item-row { display:flex; align-items:center; padding:9px 10px; border-bottom:1px solid rgba(201,168,76,0.07); gap:8px; }
+.item-row.magic { background:rgba(160,80,255,0.08); border-bottom-color:rgba(160,80,255,0.2); }
+.item-row.equipped { background:rgba(201,168,76,0.07); border-bottom-color:rgba(201,168,76,0.2); }
+.item-row.equipped.magic { background:rgba(160,80,255,0.1); border-bottom-color:rgba(160,80,255,0.3); }
+.item-equip-dot { width:14px; height:14px; border-radius:3px; border:1.5px solid var(--gold-dim); background:transparent; flex-shrink:0; transition:all 0.2s; padding:0; }
+.item-equip-dot.on { background:var(--gold); border-color:var(--gold); box-shadow:0 0 6px rgba(201,168,76,0.4); }
+.item-magic-gem { font-size:14px; flex-shrink:0; }
+.item-name-in { flex:1; font-size:14px; border-bottom:1px solid rgba(201,168,76,0.08); color:var(--text-main); background:transparent; outline:none; }
+.item-qty-in { width:38px; text-align:center; font-size:14px; color:var(--text-dim); border-bottom:1px solid rgba(201,168,76,0.08); background:transparent; outline:none; }
+.item-del { background:none; border:none; color:var(--red); font-size:14px; opacity:0.4; padding:0 4px; }
+
+/* NOTES */
+.notes-ta { width:100%; background:rgba(255,255,255,0.03); border:1px solid rgba(201,168,76,0.1); border-radius:10px; color:var(--text-main); font-size:15px; line-height:1.8; padding:12px; resize:none; min-height:160px; outline:none; }
+
+/* CHAR SWITCHER */
+.char-switcher { display:flex; gap:6px; overflow-x:auto; padding-bottom:4px; margin-bottom:12px; scrollbar-width:none; }
+.char-switcher::-webkit-scrollbar { display:none; }
+.char-tab { flex-shrink:0; padding:6px 14px; border-radius:20px; border:1px solid rgba(201,168,76,0.2); background:rgba(255,255,255,0.04); color:var(--text-dim); font-size:12px; white-space:nowrap; }
+.char-tab.active { background:rgba(201,168,76,0.18); border-color:var(--gold); color:var(--gold); }
+.char-tab.add-char { border-style:dashed; }
+
+/* SAVE */
+.save-row { display:flex; gap:8px; }
+.save-btn { flex:1; padding:12px 6px; border-radius:10px; font-size:14px; letter-spacing:1px; border:1px solid rgba(201,168,76,0.3); }
+.save-btn.prim { background:rgba(201,168,76,0.18); color:var(--gold-light); }
+.save-btn.sec { background:rgba(255,255,255,0.05); color:var(--text-dim); }
+
+/* TOAST */
+#toast { position:fixed; bottom:80px; left:50%; transform:translateX(-50%) translateY(16px); background:rgba(20,14,4,0.96); border:1px solid var(--gold); color:var(--gold-light); font-size:13px; letter-spacing:1px; padding:10px 22px; border-radius:30px; opacity:0; transition:all 0.3s; z-index:9999; pointer-events:none; white-space:nowrap; }
+#toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+/* NAV */
+#nav { position:fixed; bottom:0; left:0; right:0; height:68px; background:rgba(10,7,4,0.97); border-top:1px solid rgba(201,168,76,0.2); display:flex; align-items:center; justify-content:space-around; padding:0 4px; z-index:1000; }
+.nb { display:flex; flex-direction:column; align-items:center; gap:2px; background:none; border:none; padding:8px 10px; border-radius:10px; color:#7a6230; transition:color 0.2s,background 0.2s; min-width:44px; }
+.nb.on { color:var(--gold); background:rgba(201,168,76,0.12); }
+.nb-icon { font-size:20px; line-height:1; }
+.nb-label { font-size:8px; letter-spacing:1px; text-transform:uppercase; }
+
+/* MODAL */
+.modal-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.75); z-index:5000; display:flex; align-items:flex-end; justify-content:center; opacity:0; pointer-events:none; transition:opacity 0.25s; }
+.modal-overlay.show { opacity:1; pointer-events:all; }
+.modal { background:#1a1208; border:1px solid var(--card-border); border-radius:20px 20px 0 0; width:100%; max-height:80vh; padding:20px 16px 36px; overflow-y:auto; transform:translateY(100%); transition:transform 0.3s; }
+.modal-overlay.show .modal { transform:translateY(0); }
+.modal-title { font-size:18px; color:var(--gold-light); font-weight:bold; margin-bottom:4px; }
+.modal-sub { font-size:12px; color:var(--text-dim); margin-bottom:14px; letter-spacing:1px; }
+.modal-close { position:absolute; top:16px; right:16px; background:rgba(255,255,255,0.08); border:none; color:var(--text-dim); width:32px; height:32px; border-radius:50%; font-size:18px; display:flex; align-items:center; justify-content:center; }
+.modal-notes { width:100%; background:rgba(255,255,255,0.04); border:1px solid rgba(201,168,76,0.15); border-radius:10px; color:var(--text-main); font-size:15px; line-height:1.8; padding:12px; resize:none; min-height:120px; outline:none; font-family:Georgia,serif; }
+.modal-save { width:100%; margin-top:12px; padding:12px; background:rgba(201,168,76,0.18); border:1px solid rgba(201,168,76,0.3); border-radius:10px; color:var(--gold-light); font-size:14px; }
+
+/* QR */
+.pdf-btn { width:100%; padding:12px; background:rgba(100,100,200,0.15); border:1px solid rgba(100,100,200,0.3); border-radius:10px; color:#99aaff; font-size:14px; margin-top:10px; }
+
+.bonus-picker-overlay { position:fixed; bottom:0; left:0; right:0; background:rgba(10,7,4,0.9); border-top:1px solid rgba(201,168,76,0.25); border-radius:20px 20px 0 0; z-index:6000; padding:16px 16px 30px; transform:translateY(100%); transition:transform 0.3s cubic-bezier(0.4,0,0.2,1); }
+.bonus-picker-overlay.show { transform:translateY(0); }
+.bonus-picker-title { font-size:11px; letter-spacing:3px; text-transform:uppercase; color:var(--gold); text-align:center; margin-bottom:14px; }
+.picker-wheels { display:flex; gap:12px; margin-bottom:16px; }
+.picker-wheel { flex:1; background:rgba(255,255,255,0.04); border:1px solid rgba(201,168,76,0.15); border-radius:12px; overflow:hidden; position:relative; height:160px; }
+.picker-wheel select { position:absolute; inset:0; width:100%; height:100%; opacity:0; font-size:16px; }
+.picker-wheel-display { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; gap:0; pointer-events:none; }
+.picker-wheel-label { font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--text-dim); padding:8px 0 4px; }
+.picker-wheel-val { font-size:28px; font-weight:bold; color:var(--gold-light); }
+.picker-wheel-sub { font-size:12px; color:var(--text-dim); }
+.picker-confirm { width:100%; padding:14px; background:rgba(201,168,76,0.18); border:1px solid rgba(201,168,76,0.35); border-radius:12px; color:var(--gold-light); font-size:16px; letter-spacing:1px; }
+
+.divider { text-align:center; margin:12px 0 8px; position:relative; }
+
+/* MAGIC WEAPON TIERS */
+.atk-card.magic1 { border-color:rgba(100,180,100,0.5); background:rgba(40,100,40,0.12); }
+.atk-card.magic2 { border-color:rgba(100,160,255,0.6); background:rgba(30,60,140,0.15); box-shadow:0 0 10px rgba(100,160,255,0.15); }
+.atk-card.magic3 { border-color:rgba(200,100,255,0.7); background:rgba(80,20,120,0.2); box-shadow:0 0 14px rgba(200,100,255,0.25); animation:magicPulse 3s ease-in-out infinite; }
+@keyframes magicPulse {
+  0%,100% { box-shadow:0 0 14px rgba(200,100,255,0.25); }
+  50% { box-shadow:0 0 22px rgba(200,100,255,0.5), 0 0 40px rgba(200,100,255,0.15); }
+}
+.magic-badge {
+  font-size:11px; font-weight:bold; letter-spacing:1px;
+  padding:2px 7px; border-radius:10px; flex-shrink:0;
+}
+.magic-badge.m1 { background:rgba(40,100,40,0.4); color:#7dbb7d; border:1px solid rgba(100,180,100,0.4); }
+.magic-badge.m2 { background:rgba(30,60,140,0.4); color:#7ab0ff; border:1px solid rgba(100,160,255,0.5); }
+.magic-badge.m3 { background:rgba(80,20,120,0.4); color:#cc88ff; border:1px solid rgba(200,100,255,0.5); }
+.divider::before { content:''; position:absolute; top:50%; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,rgba(201,168,76,0.2),transparent); }
+.divider span { position:relative; background:#0d0a07; padding:0 10px; font-size:9px; letter-spacing:3px; color:var(--text-dim); text-transform:uppercase; }
+</style>
+</head>
+<body>
+<div id="toast"></div>
+
+<!-- SPELL DETAIL MODAL -->
+<div class="modal-overlay" id="spellModal" onclick="closeSpellModal(event)">
+  <div class="modal" style="position:relative;">
+    <button class="modal-close" onclick="closeSpellModalDirect()">✕</button>
+    <div class="modal-title" id="modalSpellName"></div>
+    <div class="modal-sub" id="modalSpellSub"></div>
+    <textarea class="modal-notes" id="modalSpellNotes" placeholder="Zauber-Details: Reichweite, Dauer, Beschreibung..." oninput="saveSpellNote()"></textarea>
+    <div id="modalRestSettings" style="display:none;"></div>
+    <button class="modal-save" id="modalSaveBtn" onclick="closeSpellModalDirect()">✓ Fertig</button>
+  </div>
+</div>
+
+<!-- SHARE MODAL -->
+<div class="modal-overlay" id="qrModal" onclick="closeQrModal(event)">
+  <div class="modal" style="position:relative;">
+    <button class="modal-close" onclick="closeQrModalDirect()">✕</button>
+    <div class="modal-title">Charakter teilen</div>
+    <div class="modal-sub" style="margin-bottom:14px;">Kopiere den Code und füge ihn auf einem anderen Gerät ein</div>
+    <textarea id="shareCodeArea" readonly
+      style="width:100%;height:120px;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.2);border-radius:10px;color:#a08c60;font-size:11px;padding:10px;resize:none;outline:none;font-family:monospace;word-break:break-all;"></textarea>
+    <button onclick="copyShareCode()" style="width:100%;margin-top:8px;padding:12px;background:rgba(201,168,76,0.18);border:1px solid rgba(201,168,76,0.3);border-radius:10px;color:#e8cc7a;font-size:14px;">📋 Code kopieren</button>
+    <div style="margin:14px 0 6px;border-top:1px solid rgba(201,168,76,0.15);padding-top:14px;">
+      <div class="modal-sub" style="margin-bottom:8px;">Code von anderem Gerät einfügen</div>
+      <textarea id="importCodeArea" placeholder="Code hier einfügen..."
+        style="width:100%;height:80px;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.2);border-radius:10px;color:#f0e6c8;font-size:11px;padding:10px;resize:none;outline:none;font-family:monospace;word-break:break-all;"></textarea>
+      <button onclick="importShareCode()" style="width:100%;margin-top:8px;padding:12px;background:rgba(39,174,96,0.12);border:1px solid rgba(39,174,96,0.3);border-radius:10px;color:#5dba7d;font-size:14px;">📥 Charakter laden</button>
+    </div>
+    <button class="pdf-btn" onclick="printChar()">🖨 Als PDF drucken / speichern</button>
+  </div>
+</div>
+
+<div id="outer">
+<div id="container">
+
+<!-- PAGE 0: CHARAKTER -->
+<div class="page" id="pg0" style="font-size:var(--fs0);">
+  <div class="page-header"><div class="page-title">⚔ Charakter ⚔</div></div>
+
+  <!-- CHAR SWITCHER -->
+  <div class="char-switcher" id="charSwitcher"></div>
+
+  <!-- IDENTITY CARD (always visible) -->
+  <div class="card">
+    <input class="char-name" id="charName" value="Glim Nackle Huhu">
+    <input class="char-sub" id="charSub" value="Barde · Level 5 · Gnom · Neutrales Gut">
+    <div class="stats-row">
+      <div class="stat-box">
+        <span class="stat-label">Rüstung</span>
+        <input class="stat-val" id="statRK" value="18" oninput="updateAllStatDisplays();autoSave();">
+      </div>
+      <div class="stat-box">
+        <span class="stat-label">Initiative</span>
+        <input class="stat-val" id="statINI" value="+4" oninput="updateAllStatDisplays();autoSave();">
+      </div>
+      <div class="stat-box">
+        <span class="stat-label">Bewegung</span>
+        <input class="stat-val" id="statBEW" value="7,5m" oninput="updateAllStatDisplays();autoSave();">
+      </div>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <div class="tab-bar">
+    <button class="tab-btn active" id="ctab0" onclick="switchCharTab(0)">Leben</button>
+    <button class="tab-btn" id="ctab1" onclick="switchCharTab(1)">Attribute</button>
+    <button class="tab-btn" id="ctab2" onclick="switchCharTab(2)">Extras</button>
+  </div>
+
+  <!-- TAB 0: LEBEN -->
+  <div id="ctabContent0">
+    <div class="card">
+      <div class="card-title">❤ Trefferpunkte</div>
+      <button class="insp-btn" id="inspBtn" onclick="toggleInsp()">
+        <span class="insp-label">Inspiration</span>
+        <div class="insp-gem" id="inspGem"></div>
+      </button>
+      <div class="prof-row">
+        <div>
+          <span class="prof-label">Übungsbonus</span>
+          <div style="display:flex;align-items:baseline;gap:3px;">
+            <input class="prof-in" id="profBonus" value="+3" oninput="updateAllStatDisplays();autoSave();">
+            <span id="profBonusBadge" style="display:none;font-size:10px;color:var(--green-bright);font-weight:bold;"></span>
+          </div>
+        </div>
+        <div style="flex:1"></div>
+        <div style="text-align:right;">
+          <span class="prof-label">Passive Wahrn.</span>
+          <div style="display:flex;align-items:baseline;justify-content:flex-end;gap:3px;">
+            <span id="passPercBadge" style="display:none;font-size:10px;color:var(--green-bright);font-weight:bold;"></span>
+            <input class="prof-in" id="passPerc" value="14" oninput="updateAllStatDisplays();autoSave();" style="width:48px;text-align:center;">
+          </div>
+        </div>
+      </div>
+      <div class="bar-wrap">
+        <div class="hp-row">
+          <span class="hp-label-text">Leben</span>
+          <span><span class="hp-number" id="hpNum">23</span><span class="hp-sep">/</span><input class="hp-max-in" id="maxHp" value="56" type="number" oninput="renderBars()"></span>
+        </div>
+        <div class="bar"><div class="fill" id="hpFill"></div></div>
+        <div class="hp-ctrl">
+          <button class="rest-btn short" onclick="shortRest()" style="width:38px;height:38px;flex:none;border-radius:50%;padding:0;font-size:16px;display:flex;align-items:center;justify-content:center;">☕</button>
+          <button class="hp-btn" onclick="chHP(-1)">−</button>
+          <input class="hp-in" id="hpAmt" value="1" type="number" min="0">
+          <button class="hp-btn" onclick="chHP(1)">+</button>
+          <button class="rest-btn long" onclick="longRest()" style="width:38px;height:38px;flex:none;border-radius:50%;padding:0;font-size:16px;display:flex;align-items:center;justify-content:center;">🌙</button>
+        </div>
+      </div>
+      <div class="bar-wrap" style="margin-bottom:0">
+        <div class="hp-row">
+          <span class="hp-label-text">Temp. TP</span>
+          <span class="hp-number" id="tempNum">0</span>
+        </div>
+        <div class="bar"><div class="fill" id="tempFill"></div></div>
+        <div class="hp-ctrl">
+          <button class="hp-btn" onclick="chTemp(-1)">−</button>
+          <input class="hp-in" id="tempAmt" value="1" type="number" min="0">
+          <button class="hp-btn" onclick="chTemp(1)">+</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">☠ Todeswürfe</div>
+      <div class="death-label">✓ Erfolge</div>
+      <div class="death-row">
+        <button class="d-tile" onclick="this.classList.toggle('s-active')"></button>
+        <button class="d-tile" onclick="this.classList.toggle('s-active')"></button>
+        <button class="d-tile" onclick="this.classList.toggle('s-active')"></button>
+      </div>
+      <div class="death-label">✗ Misserfolge</div>
+      <div class="death-row">
+        <button class="d-tile" onclick="this.classList.toggle('f-active')"></button>
+        <button class="d-tile" onclick="this.classList.toggle('f-active')"></button>
+        <button class="d-tile" onclick="this.classList.toggle('f-active')"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 1: ATTRIBUTE -->
+  <div id="ctabContent1" style="display:none">
+    <div class="card">
+      <div class="card-title">Attribute</div>
+      <div class="grid3">
+        <div class="tile"><span class="tile-label">Stärke</span><input class="editable" id="aSTAm" value="−1" oninput="updateAllStatDisplays();autoSave();"><span id="aSTAmBadge" style="display:none;font-size:10px;color:var(--green-bright);font-weight:bold;"></span><input class="score-input" id="aSTAv" value="8"></div>
+        <div class="tile"><span class="tile-label">Geschick</span><input class="editable" id="aGESm" value="+4" oninput="updateAllStatDisplays();autoSave();"><span id="aGESmBadge" style="display:none;font-size:10px;color:var(--green-bright);font-weight:bold;"></span><input class="score-input" id="aGESv" value="17"></div>
+        <div class="tile"><span class="tile-label">Konstitution</span><input class="editable" id="aKONm" value="+4" oninput="updateAllStatDisplays();autoSave();"><span id="aKONmBadge" style="display:none;font-size:10px;color:var(--green-bright);font-weight:bold;"></span><input class="score-input" id="aKONv" value="18"></div>
+        <div class="tile"><span class="tile-label">Intelligenz</span><input class="editable" id="aINTm" value="+3" oninput="updateAllStatDisplays();autoSave();"><span id="aINTmBadge" style="display:none;font-size:10px;color:var(--green-bright);font-weight:bold;"></span><input class="score-input" id="aINTv" value="13"></div>
+        <div class="tile"><span class="tile-label">Weisheit</span><input class="editable" id="aWEIm" value="+2" oninput="updateAllStatDisplays();autoSave();"><span id="aWEImBadge" style="display:none;font-size:10px;color:var(--green-bright);font-weight:bold;"></span><input class="score-input" id="aWEIv" value="15"></div>
+        <div class="tile"><span class="tile-label">Charisma</span><input class="editable" id="aCHAm" value="+3" oninput="updateAllStatDisplays();autoSave();"><span id="aCHAmBadge" style="display:none;font-size:10px;color:var(--green-bright);font-weight:bold;"></span><input class="score-input" id="aCHAv" value="16"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Rettungswürfe</div>
+      <div class="grid3" id="savesGrid">
+        <button class="tile" onclick="toggleSave(this)"><span class="tile-label">Stärke</span><input class="editable" value="0" onclick="event.stopPropagation()"></button>
+        <button class="tile active" onclick="toggleSave(this)"><span class="tile-label">Geschick</span><input class="editable" value="+6" onclick="event.stopPropagation()"></button>
+        <button class="tile active" onclick="toggleSave(this)"><span class="tile-label">Konstitution</span><input class="editable" value="+5" onclick="event.stopPropagation()"></button>
+        <button class="tile active" onclick="toggleSave(this)"><span class="tile-label">Intelligenz</span><input class="editable" value="+4" onclick="event.stopPropagation()"></button>
+        <button class="tile" onclick="toggleSave(this)"><span class="tile-label">Weisheit</span><input class="editable" value="+3" onclick="event.stopPropagation()"></button>
+        <button class="tile active" onclick="toggleSave(this)"><span class="tile-label">Charisma</span><input class="editable" value="+5" onclick="event.stopPropagation()"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 2: EXTRAS -->
+  <div id="ctabContent2" style="display:none">
+    <div class="card">
+      <div class="card-title">Trefferwürfel</div>
+      <div class="hd-row" id="hdRow"></div>
+      <div style="display:flex;gap:8px;margin-top:10px;align-items:center;">
+        <span style="font-size:12px;color:var(--text-dim);">Würfeltyp:</span>
+        <select id="hdType" onchange="buildHD();autoSave();" style="background:rgba(255,255,255,0.05);border:1px solid rgba(201,168,76,0.2);border-radius:8px;color:var(--text-main);padding:4px 8px;font-size:14px;outline:none;">
+          <option value="6">W6</option><option value="8" selected>W8</option><option value="10">W10</option><option value="12">W12</option>
+        </select>
+        <button onclick="resetHD()" style="margin-left:auto;background:rgba(39,174,96,0.1);border:1px solid rgba(39,174,96,0.3);border-radius:8px;color:#27ae60;font-size:12px;padding:5px 10px;">↺ Alle zurück</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Erschöpfung</div>
+      <div class="exh-row" id="exhRow"></div>
+      <div class="exh-label" id="exhLabel"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- PAGE 1: FÄHIGKEITEN -->
+<div class="page" id="pg1" style="font-size:var(--fs1);">
+  <div class="page-header"><div class="page-title">🎭 Fähigkeiten</div></div>
+  <div class="card" style="padding:0;">
+    <div style="display:flex;gap:14px;padding:10px 14px 8px;font-size:13px;color:var(--text-dim);align-items:center;">
+      <span>○ Keine</span>
+      <span style="color:var(--gold);">● Übung</span>
+      <span style="display:inline-flex;align-items:center;gap:4px;">
+        <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:linear-gradient(135deg,#fff8c0,#e8cc7a,#fff,#c9a84c);border:2px solid #fff8c0;box-shadow:0 0 8px 2px rgba(232,204,122,0.9);vertical-align:middle;"></span>
+        <span style="color:var(--gold-light);">Expertise</span>
+      </span>
+    </div>
+    <div id="skillList"></div>
+  </div>
+</div>
+
+<!-- PAGE 2: ANGRIFFE -->
+<div class="page" id="pg2" style="font-size:var(--fs2);">
+  <div class="page-header"><div class="page-title">⚔ Angriffe</div></div>
+  <div id="atkList"></div>
+  <button class="add-btn" onclick="addAtk()">+ Angriff hinzufügen</button>
+  <div class="divider" style="margin-top:14px;"><span>Klassenmerkmale</span></div>
+  <div class="card">
+    <textarea class="notes-ta" id="classFeatures" style="min-height:140px;" placeholder="Bardische Inspiration, Jack of All Trades..."></textarea>
+  </div>
+</div>
+
+<!-- PAGE 3: ZAUBER -->
+<div class="page" id="pg3" style="font-size:var(--fs3);">
+  <div class="page-header"><div class="page-title">✨ Zauberei</div></div>
+  <div class="card">
+    <div class="card-title">Zauberwerte</div>
+    <div class="spell-dc-row">
+      <div class="spell-dc-tile"><span class="spell-dc-label">Attribut</span><input class="spell-dc-val" id="spellAttr" value="CHA" style="width:60px;text-transform:uppercase;"></div>
+      <div class="spell-dc-tile"><span class="spell-dc-label">Zauber SG</span><input class="spell-dc-val" id="spellDC" value="14"></div>
+      <div class="spell-dc-tile"><span class="spell-dc-label">Angriff</span><input class="spell-dc-val" id="spellAtk" value="+6"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <span class="card-title" style="margin:0;">Zauberplätze</span>
+      <button class="slot-edit-btn" id="slotEditBtn" onclick="toggleSlotEdit()">Anpassen</button>
+    </div>
+    <div id="spellSlots"></div>
+    <div id="slotEditor" style="display:none;"></div>
+  </div>
+  <div class="card" style="padding:0;">
+    <div style="padding:12px 14px 6px;"><div class="card-title" style="margin-bottom:4px;">Bekannte Zauber</div>
+    <div style="font-size:11px;color:var(--text-dim);text-align:center;">Tippe auf einen Zauber für Details</div></div>
+    <div id="spellList"></div>
+    <div style="padding:8px 14px 12px;"><button class="add-btn" onclick="addSpell()">+ Zauber hinzufügen</button></div>
+  </div>
+</div>
+
+<!-- PAGE 4: AUSRÜSTUNG -->
+<div class="page" id="pg4" style="font-size:var(--fs4);">
+  <div class="page-header"><div class="page-title">🎒 Ausrüstung</div></div>
+  <div class="card">
+    <div class="card-title">Münzen</div>
+    <div class="coins-grid" id="coinsGrid"></div>
+  </div>
+  <div class="card" style="padding:0;">
+    <div style="padding:10px 14px 6px;"><div class="card-title" style="margin-bottom:0;">Gegenstände</div></div>
+    <div id="itemList"></div>
+    <div style="padding:8px 14px 12px;"><button class="add-btn" onclick="addItem()">+ Gegenstand hinzufügen</button></div>
+  </div>
+</div>
+
+<!-- PAGE 5: NOTIZEN -->
+<div class="page" id="pg5" style="font-size:var(--fs5);">
+  <div class="page-header"><div class="page-title">📜 Notizen & Einstellungen</div></div>
+
+  <div class="card"><div class="card-title">Hintergrundgeschichte</div><textarea class="notes-ta" id="noteBG" placeholder="Persönlichkeit, Ideale, Bindungen..."></textarea></div>
+  <div class="card"><div class="card-title">Sprachen & Kundigkeit</div><textarea class="notes-ta" id="noteLang" style="min-height:100px;" placeholder="Gnomisch, Gemeinsprache..."></textarea></div>
+  <div class="card"><div class="card-title">Sitzungsnotizen</div><textarea class="notes-ta" id="noteSession" placeholder="Notizen..."></textarea></div>
+
+  <div class="divider"><span>Einstellungen</span></div>
+
+  <div class="card">
+    <div class="save-row">
+      <button class="save-btn prim" onclick="saveChar()">💾 Speichern</button>
+      <button class="save-btn sec" onclick="loadChar()">📂 Laden</button>
+    </div>
+    <input type="file" id="fileIn" accept=".json" style="display:none" onchange="importFile(event)">
+    <div style="height:8px;"></div>
+    <div class="save-row">
+      <button class="save-btn sec" onclick="showQR()">📲 Teilen</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">⚙ Schriftgrösse</div>
+    <div id="fontSizePanel"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">⚙ Allgemeine Einstellungen</div>
+    <div id="generalSettingsPanel"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">⚙ Konzentrations-Warnung</div>
+    <div id="concWarningPanel"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">⚙ Rast-Einstellungen</div>
+    <div id="restSettingsPanel"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">⚙ Weitere Einstellungen</div>
+    <div style="display:flex;align-items:center;gap:12px;padding:8px 0;">
+      <span style="flex:1;font-size:15px;color:#f0e6c8;">Konzentrationswarnung bei Schaden</span>
+      <button id="concWarnToggle" onclick="toggleConcWarning(this)"
+        style="width:52px;height:28px;border-radius:14px;border:1px solid rgba(201,168,76,0.3);background:rgba(201,168,76,0.5);color:#0d0a07;font-size:12px;font-weight:bold;">AN</button>
+    </div>
+  </div>
+</div>
+
+</div>
+</div>
+
+<!-- BONUS PICKER -->
+<div class="bonus-picker-overlay" id="bonusPickerOverlay" onclick="if(event.target===this)closeBonusPicker()">
+  <div class="bonus-picker-title">Bonus hinzufügen</div>
+  <div class="picker-wheels">
+    <div class="picker-wheel">
+      <div class="picker-wheel-display">
+        <span class="picker-wheel-label">Attribut</span>
+        <span class="picker-wheel-val" id="pickerAttrVal">RK</span>
+        <span class="picker-wheel-sub" id="pickerAttrSub">Rüstungsklasse</span>
+      </div>
+      <select id="pickerAttrSel" size="1" onchange="updatePickerDisplay()">
+        <option value="statRK">RK</option>
+        <option value="statINI">Initiative</option>
+        <option value="statBEW">Bewegung</option>
+        <option value="aSTAm">STÄ Mod</option>
+        <option value="aGESm">GES Mod</option>
+        <option value="aKONm">KON Mod</option>
+        <option value="aINTm">INT Mod</option>
+        <option value="aWEIm">WEI Mod</option>
+        <option value="aCHAm">CHA Mod</option>
+        <option value="profBonus">Übungsbonus</option>
+        <option value="passPerc">Pass. Wahrn.</option>
+      </select>
+    </div>
+    <div class="picker-wheel" style="max-width:100px;">
+      <div class="picker-wheel-display">
+        <span class="picker-wheel-label">Bonus</span>
+        <span class="picker-wheel-val" id="pickerBonusVal">+1</span>
+      </div>
+      <select id="pickerBonusSel" onchange="updatePickerDisplay()">
+        <option value="-5">−5</option><option value="-4">−4</option><option value="-3">−3</option>
+        <option value="-2">−2</option><option value="-1">−1</option>
+        <option value="1" selected>+1</option><option value="2">+2</option><option value="3">+3</option>
+        <option value="4">+4</option><option value="5">+5</option><option value="6">+6</option>
+      </select>
+    </div>
+  </div>
+  <button class="picker-confirm" onclick="confirmBonusPicker()">✓ Hinzufügen</button>
+</div>
+
+<!-- DELETE CHAR MODAL -->
+<div class="modal-overlay" id="deleteCharModal" style="z-index:6001;">
+  <div class="modal" style="position:relative;text-align:center;">
+    <div style="font-size:36px;margin-bottom:10px;">🗑</div>
+    <div style="font-size:18px;font-weight:bold;color:#e87070;margin-bottom:8px;">Charakter löschen?</div>
+    <div id="deleteCharName" style="font-size:16px;color:#f0e6c8;margin-bottom:6px;padding:8px 14px;background:rgba(255,255,255,0.05);border-radius:8px;margin-bottom:16px;"></div>
+    <div style="font-size:13px;color:#a08c60;margin-bottom:20px;">Diese Aktion kann nicht rückgängig gemacht werden.</div>
+    <div style="display:flex;gap:10px;">
+      <button onclick="closeDeleteCharModal()" style="flex:1;padding:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(201,168,76,0.2);border-radius:10px;color:#a08c60;font-size:14px;">Abbrechen</button>
+      <button onclick="deleteCharConfirmed()" style="flex:1;padding:12px;background:rgba(192,57,43,0.2);border:1px solid rgba(192,57,43,0.4);border-radius:10px;color:#e87070;font-size:14px;">Löschen</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONCENTRATION BROKEN MODAL -->
+<div class="modal-overlay" id="concBrokenModal" style="z-index:6000;">
+  <div class="modal" style="position:relative;text-align:center;">
+    <div style="font-size:40px;margin-bottom:10px;">⚡</div>
+    <div style="font-family:Georgia,serif;font-size:20px;font-weight:bold;color:#e87070;margin-bottom:8px;">Konzentration unterbrochen!</div>
+    <div style="font-size:15px;color:#a08c60;margin-bottom:6px;">Der Zauber</div>
+    <div id="concBrokenSpellName" style="font-size:18px;color:#f0e6c8;font-weight:bold;margin-bottom:14px;padding:8px 14px;background:rgba(255,255,255,0.05);border-radius:8px;"></div>
+    <div style="font-size:14px;color:#a08c60;margin-bottom:20px;">wurde beendet da du Schaden erlitten hast.</div>
+    <button onclick="closeConcBrokenModal()" style="width:100%;padding:12px;background:rgba(192,57,43,0.2);border:1px solid rgba(192,57,43,0.4);border-radius:10px;color:#e87070;font-size:15px;">Verstanden</button>
+  </div>
+</div>
+
+<div id="nav">
+  <button class="nb on" id="nb0" onclick="go(0)"><span class="nb-icon">🧙</span><span class="nb-label">Charakter</span></button>
+  <button class="nb" id="nb1" onclick="go(1)"><span class="nb-icon">🎭</span><span class="nb-label">Fähigk.</span></button>
+  <button class="nb" id="nb2" onclick="go(2)"><span class="nb-icon">⚔️</span><span class="nb-label">Angriffe</span></button>
+  <button class="nb" id="nb3" onclick="go(3)"><span class="nb-icon">✨</span><span class="nb-label">Zauber</span></button>
+  <button class="nb" id="nb4" onclick="go(4)"><span class="nb-icon">🎒</span><span class="nb-label">Ausrüst.</span></button>
+  <button class="nb" id="nb5" onclick="go(5)"><span class="nb-icon">📜</span><span class="nb-label">Notizen</span></button>
+</div>
+
+<script>
+// ── STATE ──
+var hp=23,temp=0,insp=false,curPage=0,slotEdit=false;
+var concSpell='';
+var concWarningEnabled=true;
+var concWarningEnabled=true;
+var concWarningEnabled=true;
+var coins={KM:12,SM:0,EM:0,GM:87,PM:0};
+var coinTypes=[
+  {key:'KM',label:'Kupfer',cls:'kp',color:'#b87333'},
+  {key:'SM',label:'Silber',cls:'sp',color:'#aaa'},
+  {key:'EM',label:'Elektrum',cls:'ep',color:'#e8cc7a'},
+  {key:'GM',label:'Gold',cls:'gp',color:'#ffd700'},
+  {key:'PM',label:'Platin',cls:'pp',color:'#b0c4de'}
+];
+var fontSizes=[17,17,17,17,17,17]; // one per page
+var exhaustion=0,hdUsed=[];
+var activeSpellIdx=-1;
+var activeCharIdx=0;
+var characters=[];
+
+var exhTexts=['Keine Erschöpfung','Nachteil auf Fähigkeitswürfe','Bewegungsrate halbiert','Nachteil auf Angriffe & Rettungswürfe','Max. HP halbiert','Bewegungsrate = 1,5m','Tod'];
+
+var skills=[
+  {name:"Akrobatik",attr:"Ges",val:"+8",p:2},
+  {name:"Arkane Kunde",attr:"Int",val:"+4",p:0},
+  {name:"Athletik",attr:"Stä",val:"+0",p:0},
+  {name:"Auftreten",attr:"Cha",val:"+5",p:1},
+  {name:"Einschüchtern",attr:"Cha",val:"+4",p:0},
+  {name:"Fingerfertigkeit",attr:"Ges",val:"+5",p:1},
+  {name:"Geschichte",attr:"Int",val:"+4",p:0},
+  {name:"Heilkunde",attr:"Wei",val:"+3",p:0},
+  {name:"Heimlichkeit",attr:"Ges",val:"+5",p:1},
+  {name:"Mit Tieren umgehen",attr:"Wei",val:"+6",p:2},
+  {name:"Motiv erkennen",attr:"Wei",val:"+3",p:0},
+  {name:"Nachforschungen",attr:"Int",val:"+4",p:0},
+  {name:"Naturkunde",attr:"Int",val:"+4",p:0},
+  {name:"Religion",attr:"Int",val:"+4",p:0},
+  {name:"Täuschen",attr:"Cha",val:"+4",p:0},
+  {name:"Überlebenskunst",attr:"Wei",val:"+3",p:0},
+  {name:"Überzeugen",attr:"Cha",val:"+4",p:0},
+  {name:"Wahrnehmung",attr:"Wei",val:"+6",p:1}
+];
+
+var attacks=[
+  {name:"Dolch",bonus:"+6",dmg:"1W4+4",type:"Stich",range:"1,5m/18m",notes:"",magic:0,magicLabel:""},
+  {name:"Vicious Mockery",bonus:"SG 14",dmg:"2W4",type:"Psychisch",range:"18m",notes:"",magic:0,magicLabel:""}
+];
+
+var slotDef=[{lv:"Stufe 1",total:4},{lv:"Stufe 2",total:3},{lv:"Stufe 3",total:2},{lv:"Stufe 4",total:0},{lv:"Stufe 5",total:0}];
+var slotUsed=[0,0,0,0,0];
+
+var spells=[
+  {name:"Vicious Mockery",prep:true,lv:0,notes:"",conc:false},
+  {name:"Minor Illusion",prep:true,lv:0,notes:"",conc:false},
+  {name:"Prestidigitation",prep:true,lv:0,notes:"",conc:false},
+  {name:"Charm Person",prep:true,lv:1,notes:"",conc:true},
+  {name:"Healing Word",prep:true,lv:1,notes:"",conc:false},
+  {name:"Thunderwave",prep:false,lv:1,notes:"",conc:false},
+  {name:"Suggestion",prep:true,lv:2,notes:"",conc:true},
+  {name:"Shatter",prep:false,lv:2,notes:"",conc:false}
+];
+
+var items=[{name:"Laute",qty:1,notes:"",magic:false,equipped:false,bonuses:{}},{name:"Dolch",qty:2,notes:"",magic:false,equipped:true,bonuses:{}},{name:"Lederrüstung",qty:1,notes:"",magic:false,equipped:true,bonuses:{}},{name:"Abenteurer-Rucksack",qty:1,notes:"",magic:false,equipped:false,bonuses:{}},{name:"Zauberfokus (Kristall)",qty:1,notes:"",magic:false,equipped:true,bonuses:{}}];
+
+// ── STATE: CONDITIONS & CONCENTRATION ──
+
+// ── CHAR TABS ──
+var activeCharTab = 0;
+function switchCharTab(i){
+  for(var t=0;t<3;t++){
+    document.getElementById('ctab'+t).className = 'tab-btn'+(t===i?' active':'');
+    document.getElementById('ctabContent'+t).style.display = t===i?'':'none';
+  }
+  activeCharTab = i;
+}
+
+// ── STAT BONUS SYSTEM ──
+var statIds=['statRK','statINI','statBEW','aSTAm','aGESm','aKONm','aINTm','aWEIm','aCHAm','profBonus','passPerc'];
+var statLabels={'statRK':'RK','statINI':'Initiative','statBEW':'Bewegung','aSTAm':'STÄ Mod','aGESm':'GES Mod','aKONm':'KON Mod','aINTm':'INT Mod','aWEIm':'WEI Mod','aCHAm':'CHA Mod','profBonus':'Übungsbonus','passPerc':'Pass. Wahrn.'};
+
+function calcStatBonus(statId){
+  var bonus=0;
+  for(var i=0;i<items.length;i++){
+    if(items[i].equipped && items[i].bonuses && items[i].bonuses[statId]){
+      bonus+=parseInt(items[i].bonuses[statId])||0;
+    }
+  }
+  return bonus;
+}
+
+function updateAllStatDisplays(){
+  var ids=['statRK','statINI','statBEW','aSTAm','aGESm','aKONm','aINTm','aWEIm','aCHAm','profBonus','passPerc'];
+  ids.forEach(function(sid){
+    var bonus=calcStatBonus(sid);
+    var input=document.getElementById(sid);
+    if(!input) return;
+
+    if(bonus!==0){
+      // Only update base if input is currently editable (not already showing bonus)
+      if(!input.readOnly){
+        input.setAttribute('data-base', input.value);
+      }
+      var base=input.getAttribute('data-base')||input.value;
+      var numBase=parseFloat(base.replace('−','-').replace(',','.'))||0;
+      var total=numBase+bonus;
+      // Keep same format as base (with + or without)
+      var hadPlus=base.indexOf('+')>=0;
+      var display=hadPlus?(total>=0?'+'+total:''+total):''+total;
+      input.value=display;
+      input.style.color='#27ae60';
+      input.style.setProperty('color','#27ae60','important');
+      input.readOnly=true;
+    } else {
+      // Restore base value and make editable
+      var base=input.getAttribute('data-base');
+      if(base!==null){ input.value=base; input.removeAttribute('data-base'); }
+      input.style.color='';
+      input.readOnly=false;
+    }
+  });
+}
+function updateRKDisplay(){ updateAllStatDisplays(); }
+
+// ── NAV ──
+
+function go(i){
+  curPage=i;
+  var c=document.getElementById('container');
+  c.scrollLeft=i*c.offsetWidth;
+  updateNav(i);
+}
+
+function applyFontSize(i){
+  var page = document.getElementById('pg'+i);
+  if(!page) return;
+  var base = 17;
+  var sz = fontSizes[i] || base;
+  var scale = sz / base;
+  // Use zoom for iOS Safari (most reliable)
+  page.style.zoom = scale;
+  // Fallback: transform scale
+  page.style.transformOrigin = 'top left';
+}
+function applyAllFontSizes(){
+  for(var i=0;i<6;i++) applyFontSize(i);
+}
+
+function updateNav(i){
+  for(var n=0;n<6;n++) document.getElementById('nb'+n).className='nb'+(n===i?' on':'');
+}
+
+// Update nav when user swipes manually
+document.getElementById('container').addEventListener('scroll', function(){
+  var c=document.getElementById('container');
+  var idx=Math.round(c.scrollLeft / c.offsetWidth);
+  if(idx !== curPage){
+    curPage=idx;
+    updateNav(idx);
+    applyFontSize(idx);
+  }
+}, {passive:true});
+
+// ── BARS ──
+function renderBars(){
+  var max=parseInt(document.getElementById('maxHp').value)||1;
+  var pct=Math.max(0,Math.min(100,hp/max*100));
+  var col='#27ae60';
+  if(pct<50)col='#f39c12';if(pct<25)col='#e67e22';if(pct<10)col='#c0392b';
+  document.getElementById('hpFill').style.width=pct+'%';
+  document.getElementById('hpFill').style.background=col;
+  document.getElementById('hpNum').textContent=hp;
+  document.getElementById('tempFill').style.width=temp>0?'100%':'0%';
+  document.getElementById('tempFill').style.background=temp>0?'#3366cc':'transparent';
+  document.getElementById('tempNum').textContent=temp;
+}
+function showConcBroken(name){
+  document.getElementById('concBrokenSpellName').textContent=name;
+  document.getElementById('concBrokenModal').classList.add('show');
+}
+function closeConcBrokenModal(){
+  document.getElementById('concBrokenModal').classList.remove('show');
+}
+function endConc(){ concSpell=''; autoSave(); }
+
+var _deleteCharIdx=-1;
+function confirmDeleteChar(i){
+  if(characters.length<=1){ toast('Mindestens ein Charakter muss vorhanden sein'); return; }
+  _deleteCharIdx=i;
+  var name=characters[i].charName||'Charakter '+(i+1);
+  document.getElementById('deleteCharName').textContent=name;
+  document.getElementById('deleteCharModal').classList.add('show');
+}
+function closeDeleteCharModal(){
+  document.getElementById('deleteCharModal').classList.remove('show');
+  _deleteCharIdx=-1;
+}
+function deleteCharConfirmed(){
+  if(_deleteCharIdx<0) return;
+  characters.splice(_deleteCharIdx,1);
+  if(activeCharIdx>=characters.length) activeCharIdx=characters.length-1;
+  applyData(characters[activeCharIdx]);
+  buildCharSwitcher();
+  closeDeleteCharModal();
+  toast('Charakter gelöscht');
+  autoSave();
+}
+function toggleConcWarning(btn){
+  concWarningEnabled=!concWarningEnabled;
+  btn.textContent=concWarningEnabled?'AN':'AUS';
+  btn.style.background=concWarningEnabled?'rgba(201,168,76,0.5)':'rgba(255,255,255,0.08)';
+  btn.style.color=concWarningEnabled?'#0d0a07':'#a08c60';
+  autoSave();
+}
+
+function chHP(dir){
+  var v=parseInt(document.getElementById('hpAmt').value)||0;
+  var mx=parseInt(document.getElementById('maxHp').value)||0;
+  var oldHp=hp;
+  hp=Math.max(0,Math.min(mx,hp+v*dir));
+  renderBars(); autoSave();
+  // If taking damage and concentration active — warn user
+  if(dir===-1 && v>0 && hp<oldHp && concSpell && concWarningEnabled){
+    var name=concSpell;
+    concSpell='';
+    // Also remove the conc flag from the spell itself
+    for(var ci=0;ci<spells.length;ci++){
+      if(spells[ci].name===name) spells[ci].conc=false;
+    }
+    buildSpells();
+    autoSave();
+    showConcBroken(name);
+  }
+}
+function chTemp(dir){
+  var v=parseInt(document.getElementById('tempAmt').value)||0;
+  temp=Math.max(0,temp+v*dir);
+  renderBars(); autoSave();
+}
+function toggleInsp(){
+  insp=!insp;
+  document.getElementById('inspBtn').className='insp-btn'+(insp?' active':'');
+  autoSave();
+}
+function toggleSave(el){ el.classList.toggle('active'); autoSave(); }
+
+// ── REST CONFIG ──
+var restConfig = {
+  short: {
+    healHD: true,
+    hdCount: 1,
+    healFlat: 0,
+    resetSlots: false
+  },
+  long: {
+    healFull: true,
+    healFlat: 0,
+    resetAllSlots: true,
+    resetHD: true,
+    hdRestoreCount: 0,
+    reduceExhaustion: true,
+    exhaustionReduce: 1
+  }
+};
+
+function rcToggle(key, subkey) {
+  restConfig[key][subkey] = !restConfig[key][subkey];
+  buildRestSettings();
+  autoSave();
+}
+
+function buildGeneralSettings(){
+  var panel=document.getElementById('generalSettingsPanel');
+  if(!panel) return;
+  var on=concWarningEnabled;
+  var row=document.createElement('div');
+  row.style.cssText='display:flex;align-items:center;gap:12px;padding:8px 0;';
+  var lbl=document.createElement('span');
+  lbl.style.cssText='flex:1;font-size:15px;color:#f0e6c8;';
+  lbl.textContent='Konzentrationswarnung bei Schaden';
+  var toggle=document.createElement('div');
+  toggle.id='concWarningToggle';
+  toggle.style.cssText='width:52px;height:28px;border-radius:14px;border:1px solid rgba(201,168,76,0.3);background:'+(on?'#c9a84c':'rgba(255,255,255,0.08)')+';position:relative;cursor:pointer;flex-shrink:0;';
+  var dot=document.createElement('div');
+  dot.style.cssText='width:21px;height:21px;border-radius:50%;background:'+(on?'#0d0a07':'rgba(255,255,255,0.4)')+';position:absolute;top:2px;'+(on?'right:2px;':'left:2px;');
+  toggle.appendChild(dot);
+  toggle.addEventListener('click',function(){
+    concWarningEnabled=!concWarningEnabled;
+    toggle.style.background=concWarningEnabled?'#c9a84c':'rgba(255,255,255,0.08)';
+    dot.style.background=concWarningEnabled?'#0d0a07':'rgba(255,255,255,0.4)';
+    dot.style.right=concWarningEnabled?'2px':'';
+    dot.style.left=concWarningEnabled?'':'2px';
+    autoSave();
+  });
+  row.appendChild(lbl);
+  row.appendChild(toggle);
+  panel.appendChild(row);
+}
+
+function buildConcWarningPanel(){
+  var panel=document.getElementById('concWarningPanel');
+  if(!panel) return;
+  var on=concWarningEnabled;
+  var dom=document.createElement('div');
+  dom.style.cssText='display:flex;align-items:center;gap:12px;padding:4px 0;';
+  var lbl=document.createElement('span');
+  lbl.style.cssText='flex:1;font-size:15px;color:#f0e6c8;';
+  lbl.textContent='Warnung bei Schaden';
+  var toggle=document.createElement('div');
+  toggle.style.cssText='width:52px;height:28px;border-radius:14px;border:1px solid rgba(201,168,76,0.3);background:'+(on?'#c9a84c':'rgba(255,255,255,0.08)')+';position:relative;cursor:pointer;transition:background 0.2s;';
+  var dot=document.createElement('div');
+  dot.style.cssText='width:21px;height:21px;border-radius:50%;background:'+(on?'#0d0a07':'rgba(255,255,255,0.4)')+';position:absolute;top:2px;'+(on?'right:2px;':'left:2px;')+'transition:all 0.2s;';
+  toggle.appendChild(dot);
+  toggle.addEventListener('click', function(){
+    concWarningEnabled=!concWarningEnabled;
+    toggle.style.background=concWarningEnabled?'#c9a84c':'rgba(255,255,255,0.08)';
+    dot.style.background=concWarningEnabled?'#0d0a07':'rgba(255,255,255,0.4)';
+    dot.style.right=concWarningEnabled?'2px':'';
+    dot.style.left=concWarningEnabled?'':'2px';
+    autoSave();
+  });
+  dom.appendChild(lbl);
+  dom.appendChild(toggle);
+  panel.appendChild(dom);
+  var hint=document.createElement('div');
+  hint.style.cssText='font-size:12px;color:#a08c60;margin-top:8px;';
+  hint.textContent='Wenn aktiv erscheint ein Popup wenn du Schaden erleidest und ein Konzentrationszauber aktiv ist.';
+  panel.appendChild(hint);
+}
+
+function buildRestSettings(){
+  var panel = document.getElementById('restSettingsPanel');
+  if(!panel) return;
+  var sc = restConfig.short;
+  var lc = restConfig.long;
+  var out = '';
+
+  function sec(label) {
+    out += '<div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#c9a84c;padding:14px 0 4px;">' + label + '</div>';
+  }
+  function tog(label, isOn, key) {
+    var bg = isOn ? '#c9a84c' : 'rgba(255,255,255,0.08)';
+    var col = isOn ? '#0d0a07' : '#a08c60';
+    out += '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(201,168,76,0.07);">' +
+      '<span style="flex:1;font-size:15px;color:#f0e6c8;">' + label + '</span>' +
+      '<button data-key="' + key + '" onclick="rsTap(this)" style="width:52px;height:28px;border-radius:14px;border:1px solid rgba(201,168,76,0.3);background:' + bg + ';color:' + col + ';font-size:12px;font-weight:bold;flex-shrink:0;">' + (isOn?'AN':'AUS') + '</button>' +
+      '</div>';
+  }
+  function num(label, val, key, unit) {
+    out += '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(201,168,76,0.07);">' +
+      '<span style="flex:1;font-size:15px;color:#f0e6c8;">' + label + '</span>' +
+      '<input type="number" value="' + val + '" min="0" data-key="' + key + '" oninput="rsNum(this)" style="width:60px;background:rgba(255,255,255,0.07);border:1px solid rgba(201,168,76,0.2);border-radius:8px;color:#f0e6c8;padding:6px;text-align:center;outline:none;font-size:15px;">' +
+      '<span style="font-size:13px;color:#a08c60;flex-shrink:0;">' + (unit||'') + '</span>' +
+      '</div>';
+  }
+
+  sec('☕ Kurzrast');
+  tog('Trefferwürfel zurücksetzen', sc.healHD, 'short.healHD');
+  num('Anzahl Trefferwürfel', sc.hdCount, 'short.hdCount', 'Würfel');
+  num('Pauschal TP zurücksetzen', sc.healFlat, 'short.healFlat', 'TP');
+  tog('Zauberplätze zurücksetzen', sc.resetSlots, 'short.resetSlots');
+
+  sec('🌙 Langrast');
+  tog('Alle HP zurücksetzen', lc.healFull, 'long.healFull');
+  num('Pauschal TP zurücksetzen', lc.healFlat, 'long.healFlat', 'TP');
+  tog('Zauberplätze zurücksetzen', lc.resetAllSlots, 'long.resetAllSlots');
+  tog('Trefferwürfel zurücksetzen', lc.resetHD, 'long.resetHD');
+  num('Anzahl Trefferwürfel', lc.hdRestoreCount, 'long.hdRestoreCount', '(0 = alle)');
+  tog('Erschöpfung zurücksetzen', lc.reduceExhaustion, 'long.reduceExhaustion');
+  num('Erschöpfungsstufen', lc.exhaustionReduce, 'long.exhaustionReduce', 'Stufen');
+
+  panel.innerHTML = out;
+}
+
+// ── FONT SIZE SETTINGS ──
+var pageNames = ['Charakter','Fähigkeiten','Angriffe','Zauber','Ausrüstung','Notizen'];
+
+function buildFontSizePanel(){
+  var panel = document.getElementById('fontSizePanel');
+  if(!panel) return;
+  var html = '';
+  for(var i=0;i<6;i++){
+    var sz = fontSizes[i]||17;
+    html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(201,168,76,0.07);">'+
+      '<span style="flex:1;font-size:15px;color:#f0e6c8;">'+pageNames[i]+'</span>'+
+      '<button data-pg="'+i+'" onclick="chFS('+i+',-1)" style="width:32px;height:32px;border-radius:50%;border:1px solid rgba(201,168,76,0.2);background:rgba(255,255,255,0.05);color:#f0e6c8;font-size:18px;display:flex;align-items:center;justify-content:center;">−</button>'+
+      '<span id="fsLabel'+i+'" style="font-size:16px;color:#c9a84c;width:36px;text-align:center;">'+sz+'</span>'+
+      '<button data-pg="'+i+'" onclick="chFS('+i+',1)" style="width:32px;height:32px;border-radius:50%;border:1px solid rgba(201,168,76,0.2);background:rgba(255,255,255,0.05);color:#f0e6c8;font-size:18px;display:flex;align-items:center;justify-content:center;">+</button>'+
+      '<button onclick="resetFS('+i+')" style="background:none;border:1px solid rgba(201,168,76,0.15);border-radius:6px;color:#a08c60;font-size:11px;padding:3px 8px;">↺</button>'+
+    '</div>';
+  }
+  html += '<button onclick="resetAllFS()" style="width:100%;margin-top:10px;padding:10px;background:rgba(255,255,255,0.04);border:1px dashed rgba(201,168,76,0.2);border-radius:10px;color:#a08c60;font-size:12px;letter-spacing:1px;">↺ Alle auf Standard</button>';
+  panel.innerHTML = html;
+}
+
+function chFS(i, dir){
+  fontSizes[i] = Math.max(12, Math.min(24, (fontSizes[i]||17) + dir));
+  var lbl = document.getElementById('fsLabel'+i);
+  if(lbl) lbl.textContent = fontSizes[i];
+  applyFontSize(i);
+  autoSave();
+}
+function resetFS(i){
+  fontSizes[i] = 17;
+  applyFontSize(i);
+  buildFontSizePanel();
+  autoSave();
+}
+function resetAllFS(){
+  for(var i=0;i<6;i++) fontSizes[i]=17;
+  applyAllFontSizes();
+  buildFontSizePanel();
+  autoSave();
+}
+
+function rsTap(btn) {
+  var key = btn.getAttribute('data-key');
+  var parts = key.split('.');
+  var cur = restConfig[parts[0]][parts[1]];
+  var newVal = !cur;
+  restConfig[parts[0]][parts[1]] = newVal;
+  btn.textContent = newVal ? 'AN' : 'AUS';
+  btn.style.background = newVal ? '#c9a84c' : 'rgba(255,255,255,0.08)';
+  btn.style.color = newVal ? '#0d0a07' : '#a08c60';
+  autoSave();
+}
+
+function rsNum(input) {
+  var key = input.getAttribute('data-key');
+  var parts = key.split('.');
+  restConfig[parts[0]][parts[1]] = parseInt(input.value) || 0;
+  autoSave();
+}
+
+// ── RESTS ──
+function shortRest(){
+  var sc=restConfig.short;
+  var messages=[];
+  if(sc.healHD){
+    var type=parseInt(document.getElementById('hdType').value)||8;
+    var count=sc.hdCount||1;
+    var totalHeal=0;
+    for(var c=0;c<count;c++){
+      var available=[];
+      for(var i=0;i<getLevel();i++){ if(hdUsed.indexOf(i)<0) available.push(i); }
+      if(available.length===0) break;
+      hdUsed.push(available[0]);
+      var roll=Math.floor(Math.random()*type)+1;
+      var conBonus=parseInt(document.getElementById('aKONm').value)||0;
+      totalHeal+=Math.max(1,roll+conBonus);
+    }
+    if(totalHeal>0){
+      var mx=parseInt(document.getElementById('maxHp').value)||0;
+      hp=Math.min(mx,hp+totalHeal);
+      messages.push('+'+totalHeal+' TP');
+    } else { messages.push('Keine Würfel mehr'); }
+  }
+  if(sc.healFlat>0){
+    var mx2=parseInt(document.getElementById('maxHp').value)||0;
+    hp=Math.min(mx2,hp+sc.healFlat);
+    messages.push('+'+sc.healFlat+' TP');
+  }
+  if(sc.resetSlots){ for(var i=0;i<slotUsed.length;i++) slotUsed[i]=0; messages.push('Slots zurück'); buildSlots(); }
+  renderBars(); buildHD();
+  toast('☕ '+(messages.join(' · ')||'Kurzrast'));
+  autoSave();
+}
+function longRest(){
+  var lc=restConfig.long;
+  var messages=[];
+  if(lc.healFull){ hp=parseInt(document.getElementById('maxHp').value)||0; temp=0; messages.push('Volle HP'); }
+  if(lc.healFlat>0){ var mx=parseInt(document.getElementById('maxHp').value)||0; hp=Math.min(mx,hp+lc.healFlat); messages.push('+'+lc.healFlat+' TP'); }
+  if(lc.resetAllSlots){ for(var i=0;i<slotUsed.length;i++) slotUsed[i]=0; messages.push('Slots zurück'); buildSlots(); }
+  if(lc.resetHD){
+    var restoreCount=lc.hdRestoreCount||0;
+    if(restoreCount===0){ hdUsed=[]; }
+    else { hdUsed=hdUsed.slice(restoreCount); }
+    messages.push('Würfel zurück'); buildHD();
+  }
+  if(lc.reduceExhaustion){
+    var reduce=lc.exhaustionReduce||1;
+    exhaustion=Math.max(0,exhaustion-reduce);
+    buildExhaustion();
+  }
+  renderBars();
+  toast('🌙 '+(messages.join(' · ')||'Langrast'));
+  autoSave();
+}
+function getLevel(){
+  var sub=document.getElementById('charSub').value||'';
+  var m=sub.match(/level\s*(\d+)/i);
+  return m?parseInt(m[1]):5;
+}
+
+// ── HIT DICE ──
+function buildHD(){
+  var lv=getLevel();
+  var type=document.getElementById('hdType').value||'8';
+  var html='';
+  for(var i=0;i<lv;i++){
+    var used=hdUsed.indexOf(i)>=0;
+    html+='<button class="hd-die'+(used?' used':'')+'" onclick="useHD('+i+')" '+(used?'disabled':'')+'>W'+type+'</button>';
+  }
+  document.getElementById('hdRow').innerHTML=html;
+}
+function useHD(i){
+  if(hdUsed.indexOf(i)>=0) return;
+  hdUsed.push(i);
+  buildHD(); autoSave();
+}
+function resetHD(){ hdUsed=[]; buildHD(); autoSave(); }
+
+// ── EXHAUSTION ──
+function buildExhaustion(){
+  var html='';
+  for(var i=1;i<=6;i++){
+    html+='<button class="exh-pip'+(exhaustion>=i?' active':'')+'" onclick="setExh('+i+')" style="border:none;">'+i+'</button>';
+  }
+  document.getElementById('exhRow').innerHTML=html;
+  document.getElementById('exhLabel').textContent=exhTexts[exhaustion]||'';
+}
+function setExh(i){
+  exhaustion=(exhaustion===i)?i-1:i;
+  buildExhaustion(); autoSave();
+}
+
+// ── SKILLS ──
+function buildSkills(){
+  var html='';
+  for(var i=0;i<skills.length;i++){
+    var s=skills[i];
+    var dc=s.p===2?'skill-dot exp':s.p===1?'skill-dot prof':'skill-dot';
+    html+='<div class="skill-item">'+
+      '<button class="'+dc+'" onclick="cycleProf('+i+')"></button>'+
+      '<span class="skill-name">'+s.name+'</span>'+
+      '<span class="skill-attr">'+s.attr+'</span>'+
+      '<input class="skill-mod" value="'+s.val+'" oninput="skills['+i+'].val=this.value;autoSave()">'+
+      '</div>';
+  }
+  document.getElementById('skillList').innerHTML=html;
+}
+function cycleProf(i){ skills[i].p=(skills[i].p+1)%3; buildSkills(); autoSave(); }
+
+// ── ATTACKS ──
+function buildAtks(){
+  var mClass=['','magic1','magic2','magic3'];
+  var mBadge=['','m1','m2','m3'];
+  var html='';
+  for(var i=0;i<attacks.length;i++){
+    var a=attacks[i];
+    var m=a.magic||0;
+    var hasNote=a.notes&&a.notes.length>0;
+    var tierStr=m>0?'+'+m:'';
+    var labelStr=a.magicLabel&&a.magicLabel.trim()?a.magicLabel.trim():'';
+    var badge=labelStr&&tierStr?labelStr+' '+tierStr:labelStr||tierStr;
+    html+='<div class="atk-card '+mClass[m]+'" style="padding:12px;margin-bottom:8px;">'+
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">'+
+        '<button onclick="openAtkModal('+i+')" style="flex:1;background:none;border:none;text-align:left;padding:0;font-family:Georgia,serif;display:flex;align-items:center;gap:6px;">'+
+          '<span style="font-size:15px;color:'+(hasNote?'var(--gold-light)':'var(--text-main)')+';">'+(a.name||'Angriff')+'</span>'+
+          (badge?'<span class="magic-badge '+mBadge[m]+'">'+badge+'</span>':'')+
+          (hasNote?'<span style="font-size:11px;color:var(--gold-dim);">✎</span>':'')+
+        '</button>'+
+        '<button class="atk-del" onclick="delAtk('+i+')">✕</button>'+
+      '</div>'+
+      '<div class="atk-grid">'+
+        '<div><span class="atk-field-label">Bonus</span><div class="atk-field-val" style="color:var(--gold);">'+(a.bonus||'—')+'</div></div>'+
+        '<div><span class="atk-field-label">Schaden</span><div class="atk-field-val">'+(a.dmg||'—')+'</div></div>'+
+        '<div><span class="atk-field-label">Typ</span><div class="atk-field-val">'+(a.type||'—')+'</div></div>'+
+        '<div><span class="atk-field-label">Reichweite</span><div class="atk-field-val">'+(a.range||'—')+'</div></div>'+
+      '</div>'+
+    '</div>';
+  }
+  document.getElementById('atkList').innerHTML=html;
+}
+function addAtk(){
+  attacks.push({name:'',bonus:'+0',dmg:'1W6',type:'',range:'',notes:''});
+  buildAtks();
+  openAtkModal(attacks.length-1, true);
+}
+function delAtk(i){ attacks.splice(i,1); buildAtks(); autoSave(); }
+
+// ── SPELL SLOTS ──
+function buildSlots(){
+  var html='';
+  for(var i=0;i<slotDef.length;i++){
+    if(slotDef[i].total===0&&!slotEdit) continue;
+    var dots='';
+    for(var d=0;d<slotDef[i].total;d++){
+      var used=d<slotUsed[i];
+      dots+='<button class="slot-dot'+(used?' used':'')+'" onclick="toggleSlotDot('+i+','+d+')"></button>';
+    }
+    html+='<div class="slot-row"><span class="slot-label">'+slotDef[i].lv+'</span><div class="slot-dots">'+dots+'</div></div>';
+  }
+  document.getElementById('spellSlots').innerHTML=html;
+  var ed=document.getElementById('slotEditor');
+  if(slotEdit){
+    var ehtml='<div class="slot-edit-panel">';
+    for(var j=0;j<slotDef.length;j++){
+      ehtml+='<div class="slot-edit-row">'+
+        '<span class="slot-edit-name">'+slotDef[j].lv+'</span>'+
+        '<button class="slot-adj-btn" onclick="adjSlot('+j+',-1)">−</button>'+
+        '<span class="slot-count">'+slotDef[j].total+'</span>'+
+        '<button class="slot-adj-btn" onclick="adjSlot('+j+',1)">+</button>'+
+        '<button class="slot-reset-btn" onclick="resetSlot('+j+')">↺</button>'+
+        '</div>';
+    }
+    ehtml+='</div>';
+    ed.innerHTML=ehtml; ed.style.display='block';
+  } else { ed.style.display='none'; }
+}
+function toggleSlotDot(si,d){ slotUsed[si]=d<slotUsed[si]?slotUsed[si]-1:slotUsed[si]+1; buildSlots(); autoSave(); }
+function adjSlot(si,dir){ slotDef[si].total=Math.max(0,Math.min(9,slotDef[si].total+dir)); if(slotUsed[si]>slotDef[si].total)slotUsed[si]=slotDef[si].total; buildSlots(); autoSave(); }
+function resetSlot(si){ slotUsed[si]=0; buildSlots(); autoSave(); }
+function toggleSlotEdit(){ slotEdit=!slotEdit; var btn=document.getElementById('slotEditBtn'); btn.style.color=slotEdit?'var(--gold)':''; btn.style.background=slotEdit?'rgba(201,168,76,0.2)':''; buildSlots(); }
+
+// ── SPELLS ──
+function buildSpells(){
+  var groups={};
+  for(var i=0;i<spells.length;i++){
+    var k=spells[i].lv;
+    if(!groups[k]) groups[k]=[];
+    groups[k].push(i);
+  }
+  var levels=Object.keys(groups).map(Number).sort(function(a,b){return a-b;});
+  var html='';
+  for(var li=0;li<levels.length;li++){
+    var lv=levels[li];
+    var label=lv===0?'Zaubertricks':'Stufe '+lv;
+    html+='<div class="spell-section"><div class="spell-sec-header"><span class="spell-sec-title">'+label+'</span><span class="spell-sec-count">'+groups[lv].length+' Zauber</span></div>';
+    var idxs=groups[lv];
+    for(var gi=0;gi<idxs.length;gi++){
+      var idx=idxs[gi];
+      var sp=spells[idx];
+      var opts='';
+      for(var ol=0;ol<=9;ol++) opts+='<option value="'+ol+'"'+(sp.lv===ol?' selected':'')+'>'+(ol===0?'ST':ol)+'</option>';
+      html+='<div class="spell-row">'+
+        '<button class="spell-prep-btn'+(sp.prep?' active':'')+'" onclick="togglePrep('+idx+')"></button>'+
+        '<button class="spell-name-btn" onclick="openSpellModal('+idx+')">'+(sp.name||'Unbenannt')+(sp.conc?' <span class="spell-conc">K</span>':'')+(sp.notes?'  <span style="color:var(--gold-dim);font-size:11px;">✎</span>':'')+'</button>'+
+        '<button class="spell-del" onclick="delSpell('+idx+')">✕</button>'+
+        '</div>';
+    }
+    html+='</div>';
+  }
+  document.getElementById('spellList').innerHTML=html;
+}
+function togglePrep(i){ spells[i].prep=!spells[i].prep; buildSpells(); autoSave(); }
+function addSpell(){
+  spells.push({name:'',prep:false,lv:1,notes:'',conc:false});
+  buildSpells();
+  openSpellModal(spells.length-1, true);
+}
+function delSpell(i){ spells.splice(i,1); buildSpells(); autoSave(); }
+
+// ── SPELL MODAL ──
+function openSpellModal(i, isNew){
+  isNew = isNew || false;
+  activeSpellIdx=i;
+  var sp=spells[i];
+  var lvLabel=sp.lv===0?'Zaubertrick':'Stufe '+sp.lv;
+
+  // Build modal content dynamically
+  var modal=document.querySelector('#spellModal .modal');
+  modal.innerHTML=
+    '<button class="modal-close" onclick="closeSpellModalDirect(window._spellModalIsNew)">✕</button>'+
+
+    // Name input
+    '<div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#a08c60;margin-bottom:4px;">Zaubername</div>'+
+    '<input id="modalSpellNameInput" value="'+(sp.name||'')+'" placeholder="Zaubername..." '+
+      'oninput="if(activeSpellIdx>=0){spells[activeSpellIdx].name=this.value;}" '+
+      'style="width:100%;font-size:20px;font-weight:bold;color:#e8cc7a;background:transparent;border:none;border-bottom:1px solid rgba(201,168,76,0.3);outline:none;padding:4px 0 6px;margin-bottom:14px;font-family:Georgia,serif;">'+
+
+    // Level + concentration row
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">'+
+      '<span style="font-size:13px;color:#a08c60;flex-shrink:0;">Stufe</span>'+
+      '<select id="modalLvlSel" onchange="if(activeSpellIdx>=0){spells[activeSpellIdx].lv=parseInt(this.value);}" '+
+        'style="background:rgba(255,255,255,0.07);border:1px solid rgba(201,168,76,0.2);border-radius:8px;color:#f0e6c8;padding:4px 8px;font-size:14px;outline:none;font-family:Georgia,serif;">'+
+        [0,1,2,3,4,5,6,7,8,9].map(function(l){ return '<option value="'+l+'"'+(sp.lv===l?' selected':'')+'>'+( l===0?'Zaubertrick':'Stufe '+l)+'</option>'; }).join('')+
+      '</select>'+
+      '<div style="flex:1;"></div>'+
+      '<span style="font-size:13px;color:#a08c60;margin-right:6px;">Konzentration</span>'+
+      '<button id="modalConcBtn" data-idx="'+i+'" onclick="toggleModalConc(this)" '+
+        'style="width:52px;height:28px;border-radius:14px;border:1px solid rgba(201,168,76,0.3);'+
+        'background:'+(sp.conc?'#c9a84c':'rgba(255,255,255,0.08)')+';'+
+        'color:'+(sp.conc?'#0d0a07':'#a08c60')+';font-size:12px;font-weight:bold;">'+
+        (sp.conc?'AN':'AUS')+
+      '</button>'+
+    '</div>'+ +
+
+    // Notes
+    '<div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#a08c60;margin-bottom:6px;">Notizen</div>'+
+    '<textarea id="modalSpellNotes" placeholder="Reichweite, Dauer, Beschreibung..." '+
+      'oninput="if(activeSpellIdx>=0){spells[activeSpellIdx].notes=this.value;autoSave();}" '+
+      'style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.15);border-radius:10px;color:#f0e6c8;font-size:15px;line-height:1.8;padding:12px;resize:none;min-height:120px;outline:none;font-family:Georgia,serif;">'+(sp.notes||'')+'</textarea>'+
+    '<div id="modalRestSettings" style="display:none;"></div>'+
+    '<button class="modal-save" id="modalSaveBtn" onclick="closeSpellModalDirect(false)">✓ Fertig</button>';
+
+  window._spellModalIsNew = isNew;
+  document.getElementById('spellModal').classList.add('show');
+}
+
+function toggleModalConc(btn) {
+  if(activeSpellIdx<0) return;
+  var sp=spells[activeSpellIdx];
+  var newVal=!sp.conc;
+  sp.conc=newVal;
+  btn.textContent=newVal?'AN':'AUS';
+  btn.style.background=newVal?'#c9a84c':'rgba(255,255,255,0.08)';
+  btn.style.color=newVal?'#0d0a07':'#a08c60';
+  // Set or clear active concentration spell
+  if(newVal){
+    concSpell=sp.name||'';
+    toast('⚡ Konzentriert: '+concSpell);
+  } else {
+    if(concSpell===sp.name) concSpell='';
+  }
+  autoSave();
+  buildSpells();
+}
+// ── ITEM MODAL ──
+var activeItemIdx = -1;
+function openItemModal(i, isNew){
+  isNew = isNew || false;
+  window._itemModalIsNew = isNew;
+  activeItemIdx = i;
+  var it = items[i];
+  var inStyle = 'width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(201,168,76,0.2);border-radius:8px;color:#f0e6c8;font-size:15px;padding:8px 10px;outline:none;font-family:Georgia,serif;margin-bottom:12px;';
+  var lbStyle = 'font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#a08c60;margin-bottom:4px;display:block;';
+  var modal = document.querySelector('#spellModal .modal');
+  var isMagic=it.magic||false;
+  var isEquipped=it.equipped||false;
+  modal.innerHTML =
+    '<button class="modal-close" onclick="closeItemModal(window._itemModalIsNew)">✕</button>'+
+    '<span style="'+lbStyle+'">Name</span>'+
+    '<input value="'+(it.name||'')+'" placeholder="Gegenstandsname..." '+
+      'oninput="items[activeItemIdx].name=this.value;autoSave();" '+
+      'style="'+inStyle+'font-size:18px;font-weight:bold;color:#e8cc7a;">'+
+    '<div style="margin-bottom:12px;">'+
+      '<div style="display:flex;align-items:center;gap:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(201,168,76,0.12);border-radius:10px;padding:12px;margin-bottom:8px;">'+
+        '<span style="font-size:20px;">⚔️</span>'+
+        '<span style="flex:1;font-size:15px;color:#f0e6c8;">Ausgerüstet</span>'+
+        '<div id="itemEquipToggle" onclick="toggleItemEquipped(this)" style="width:52px;height:28px;border-radius:14px;border:1px solid rgba(201,168,76,0.3);background:'+(isEquipped?'rgba(201,168,76,0.5)':'rgba(255,255,255,0.08)')+';position:relative;cursor:pointer;">'+
+          '<div style="width:21px;height:21px;border-radius:50%;background:'+(isEquipped?'#c9a84c':'rgba(255,255,255,0.4)')+';position:absolute;top:2px;'+(isEquipped?'right:2px;':'left:2px;')+'transition:all 0.2s;"></div>'+
+        '</div>'+
+      '</div>'+
+      '<div style="display:flex;align-items:center;gap:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(201,168,76,0.12);border-radius:10px;padding:12px;">'+
+        '<span style="font-size:20px;">✨</span>'+
+        '<span style="flex:1;font-size:15px;color:#f0e6c8;">Magischer Gegenstand</span>'+
+        '<div id="itemMagicToggle" onclick="toggleItemMagic(this)" style="width:52px;height:28px;border-radius:14px;border:1px solid rgba(201,168,76,0.3);background:'+(isMagic?'rgba(160,80,255,0.5)':'rgba(255,255,255,0.08)')+';position:relative;cursor:pointer;">'+
+          '<div style="width:21px;height:21px;border-radius:50%;background:'+(isMagic?'#cc88ff':'rgba(255,255,255,0.4)')+';position:absolute;top:2px;'+(isMagic?'right:2px;':'left:2px;')+'transition:all 0.2s;"></div>'+
+        '</div>'+
+      '</div>'+
+    '</div>'+
+    '<span style="'+lbStyle+'">Anzahl</span>'+
+    '<input type="number" value="'+(it.qty||1)+'" min="0" '+
+      'oninput="items[activeItemIdx].qty=parseInt(this.value)||0;autoSave();" '+
+      'style="'+inStyle+'width:80px;">'+
+    '<div id="itemBonusPanel" style="margin-bottom:12px;">'+
+      buildItemBonusHTML(it.bonuses||{})+
+    '</div>'+
+    '<span style="'+lbStyle+'">Notizen</span>'+
+    '<textarea placeholder="Eigenschaften, Gewicht, Wert, Beschreibung..." '+
+      'oninput="items[activeItemIdx].notes=this.value;autoSave();" '+
+      'style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.15);border-radius:10px;color:#f0e6c8;font-size:15px;line-height:1.8;padding:12px;resize:none;min-height:80px;outline:none;font-family:Georgia,serif;">'+(it.notes||'')+'</textarea>'+
+    '<button class="modal-save" onclick="closeItemModal()">✓ Fertig</button>';
+  document.getElementById('spellModal').classList.add('show');
+  // Rebuild bonus panel via DOM to avoid onclick issues
+  var panel=document.getElementById('itemBonusPanel');
+  if(panel){
+    panel.innerHTML='';
+    buildItemBonusDom(panel, it.bonuses||{});
+  }
+}
+var _itemBonusIds=['statRK','statINI','statBEW','aSTAm','aGESm','aKONm','aINTm','aWEIm','aCHAm','profBonus','passPerc'];
+var _itemBonusLabels={'statRK':'RK','statINI':'Initiative','statBEW':'Bewegung','aSTAm':'STÄ Mod','aGESm':'GES Mod','aKONm':'KON Mod','aINTm':'INT Mod','aWEIm':'WEI Mod','aCHAm':'CHA Mod','profBonus':'Übungsbonus','passPerc':'Pass. Wahrn.'};
+
+function buildItemBonusDom(panel, bonuses){
+  panel.innerHTML='';
+  var active=_itemBonusIds.filter(function(sid){ return parseInt(bonuses[sid])||0; });
+  var unused=_itemBonusIds.filter(function(sid){ return !(parseInt(bonuses[sid])||0); });
+
+  // Tile grid for active bonuses
+  if(active.length>0){
+    var grid=document.createElement('div');
+    grid.style.cssText='display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;';
+    active.forEach(function(sid){
+      var val=parseInt(bonuses[sid]);
+      grid.appendChild(makeBonusRow(sid, val));
+    });
+    panel.appendChild(grid);
+  }
+
+  // Add button row
+  if(unused.length>0){
+    var addRow=document.createElement('div');
+    addRow.style.cssText='display:flex;align-items:center;gap:8px;';
+    var lbl=document.createElement('span');
+    lbl.textContent='Boni';
+    lbl.style.cssText='font-size:13px;color:#a08c60;letter-spacing:1px;flex:1;';
+    var addBtn=document.createElement('button');
+    addBtn.textContent='+';
+    addBtn.style.cssText='width:28px;height:28px;border-radius:50%;border:1px solid rgba(201,168,76,0.25);background:rgba(201,168,76,0.08);color:var(--gold);font-size:20px;display:flex;align-items:center;justify-content:center;line-height:1;';
+    addBtn.addEventListener('click', function(){ showBonusWheel(panel); });
+    addRow.appendChild(lbl);
+    addRow.appendChild(addBtn);
+    panel.appendChild(addRow);
+  }
+}
+
+function makeBonusRow(sid, val){
+  // Tile: label top, value big, x to remove
+  var tile=document.createElement('div');
+  tile.setAttribute('data-bonusrow', sid);
+  tile.style.cssText='position:relative;background:rgba(39,174,96,0.1);border:1px solid rgba(39,174,96,0.3);border-radius:10px;padding:10px 8px 8px;text-align:center;min-width:60px;';
+  
+  var delBtn=document.createElement('button');
+  delBtn.textContent='✕';
+  delBtn.style.cssText='position:absolute;top:3px;right:4px;background:none;border:none;color:var(--red);font-size:10px;opacity:0.5;padding:0;line-height:1;';
+  delBtn.addEventListener('click', function(){ removeItemBonus(sid); });
+
+  var valSpan=document.createElement('div');
+  valSpan.id='ibonus_'+sid;
+  valSpan.style.cssText='font-size:20px;font-weight:bold;color:#7dbb7d;line-height:1;margin-bottom:3px;';
+  valSpan.textContent=(val>0?'+':'')+val;
+
+  var lbl=document.createElement('div');
+  lbl.style.cssText='font-size:9px;letter-spacing:1px;text-transform:uppercase;color:rgba(125,187,125,0.7);';
+  lbl.textContent=_itemBonusLabels[sid];
+
+  tile.appendChild(delBtn);
+  tile.appendChild(valSpan);
+  tile.appendChild(lbl);
+  return tile;
+}
+
+function buildItemBonusHTML(bonuses){
+  var h='';
+  // Active bonus rows
+  _itemBonusIds.forEach(function(sid){
+    var val=parseInt(bonuses[sid])||0;
+    if(val===0) return;
+    h+='<div data-bonusrow="'+sid+'" style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(201,168,76,0.07);">'+
+      '<span style="flex:1;font-size:14px;color:#f0e6c8;font-weight:bold;">'+_itemBonusLabels[sid]+'</span>'+
+      '<button data-sid="'+sid+'" data-dir="-1" class="ibtn" style="width:26px;height:26px;border-radius:50%;border:1px solid rgba(201,168,76,0.2);background:rgba(255,255,255,0.04);color:#f0e6c8;font-size:15px;display:flex;align-items:center;justify-content:center;">−</button>'+
+      '<span id="ibonus_'+sid+'" style="width:30px;text-align:center;font-size:14px;color:var(--green-bright);font-weight:bold;">'+(val>0?'+':'')+val+'</span>'+
+      '<button data-sid="'+sid+'" data-dir="1" class="ibtn" style="width:26px;height:26px;border-radius:50%;border:1px solid rgba(201,168,76,0.2);background:rgba(255,255,255,0.04);color:#f0e6c8;font-size:15px;display:flex;align-items:center;justify-content:center;">+</button>'+
+      '<button data-sid="'+sid+'" class="ibtn-del" style="background:none;border:none;color:var(--red);font-size:13px;padding:0 2px;opacity:0.5;">✕</button>'+
+    '</div>';
+  });
+  // Add bonus row - always at bottom
+  var unused=_itemBonusIds.filter(function(sid){ return !(parseInt(bonuses[sid])||0); });
+  if(unused.length>0){
+    h+='<div style="display:flex;align-items:center;gap:8px;padding:8px 0;">'+
+      '<span style="font-size:13px;color:#a08c60;letter-spacing:1px;flex:1;">Boni</span>'+
+      '<button id="addBonusBtn" style="width:28px;height:28px;border-radius:50%;border:1px solid rgba(201,168,76,0.25);background:rgba(201,168,76,0.08);color:var(--gold);font-size:20px;display:flex;align-items:center;justify-content:center;line-height:1;" onclick_placeholder>+</button>'+
+    '</div>';
+  }
+  return h;
+}
+
+function refreshItemBonusPanel(){
+  var panel=document.getElementById('itemBonusPanel');
+  if(!panel||activeItemIdx<0) return;
+  buildItemBonusDom(panel, items[activeItemIdx].bonuses||{});
+}
+
+function wireBonusBtns(panel){
+  panel.addEventListener('click',function(e){
+    var btn=e.target.closest('.ibtn');
+    if(btn) adjItemBonus(btn.getAttribute('data-sid'),parseInt(btn.getAttribute('data-dir')));
+    var del=e.target.closest('.ibtn-del');
+    if(del) removeItemBonus(del.getAttribute('data-sid'));
+    var add=e.target.closest('#addBonusBtn');
+    if(add) showBonusWheel(panel);
+  });
+}
+
+function showBonusWheel(panel){
+  var existing=document.getElementById('bonusWheel');
+  if(existing){ existing.remove(); return; }
+  var bonuses=items[activeItemIdx].bonuses||{};
+  var unused=_itemBonusIds.filter(function(sid){ return !(parseInt(bonuses[sid])||0); });
+  var wheel=document.createElement('div');
+  wheel.id='bonusWheel';
+  wheel.style.cssText='background:rgba(15,10,4,0.98);border:1px solid rgba(201,168,76,0.3);border-radius:12px;padding:14px;margin-bottom:8px;';
+
+  // Attribute selector
+  var attrLabel=document.createElement('div');
+  attrLabel.style.cssText='font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#a08c60;margin-bottom:8px;';
+  attrLabel.textContent='Attribut';
+  wheel.appendChild(attrLabel);
+
+  var attrSel=document.createElement('select');
+  attrSel.id='wheelAttrSel';
+  attrSel.style.cssText='width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(201,168,76,0.2);border-radius:8px;color:#f0e6c8;font-size:15px;padding:8px;outline:none;font-family:Georgia,serif;margin-bottom:12px;';
+  unused.forEach(function(sid){
+    var o=document.createElement('option');
+    o.value=sid; o.textContent=_itemBonusLabels[sid];
+    attrSel.appendChild(o);
+  });
+  wheel.appendChild(attrSel);
+
+  // Value selector
+  var valLabel=document.createElement('div');
+  valLabel.style.cssText='font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#a08c60;margin-bottom:8px;';
+  valLabel.textContent='Bonus';
+  wheel.appendChild(valLabel);
+
+  var valRow=document.createElement('div');
+  valRow.style.cssText='display:flex;align-items:center;gap:10px;margin-bottom:14px;';
+  var minusB=document.createElement('button');
+  minusB.textContent='−'; minusB.style.cssText='width:36px;height:36px;border-radius:50%;border:1px solid rgba(201,168,76,0.2);background:rgba(255,255,255,0.05);color:#f0e6c8;font-size:20px;display:flex;align-items:center;justify-content:center;';
+  var valDisp=document.createElement('span');
+  valDisp.id='wheelVal'; valDisp.textContent='+1';
+  valDisp.style.cssText='flex:1;text-align:center;font-size:24px;font-weight:bold;color:var(--gold);';
+  var plusB=document.createElement('button');
+  plusB.textContent='+'; plusB.style.cssText='width:36px;height:36px;border-radius:50%;border:1px solid rgba(201,168,76,0.2);background:rgba(255,255,255,0.05);color:#f0e6c8;font-size:20px;display:flex;align-items:center;justify-content:center;';
+  var wheelVal=1;
+  minusB.addEventListener('click',function(){ if(wheelVal>-10)wheelVal--; valDisp.textContent=(wheelVal>0?'+':'')+wheelVal; });
+  plusB.addEventListener('click',function(){ if(wheelVal<10)wheelVal++; valDisp.textContent=(wheelVal>0?'+':'')+wheelVal; });
+  valRow.appendChild(minusB); valRow.appendChild(valDisp); valRow.appendChild(plusB);
+  wheel.appendChild(valRow);
+
+  // Confirm button
+  var confirmB=document.createElement('button');
+  confirmB.textContent='✓ Hinzufügen';
+  confirmB.style.cssText='width:100%;padding:10px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.3);border-radius:10px;color:var(--gold);font-size:14px;';
+  confirmB.addEventListener('click',function(){
+    var sid=attrSel.value;
+    if(!items[activeItemIdx].bonuses) items[activeItemIdx].bonuses={};
+    items[activeItemIdx].bonuses[sid]=wheelVal;
+    refreshItemBonusPanel();
+    updateAllStatDisplays(); autoSave();
+  });
+  wheel.appendChild(confirmB);
+
+  // Insert before the add row
+  var addRow=panel.querySelector('#addBonusBtn');
+  if(addRow) addRow.closest('div').before(wheel);
+  else panel.appendChild(wheel);
+}
+
+function adjItemBonus(sid,dir){
+  if(activeItemIdx<0) return;
+  if(!items[activeItemIdx].bonuses) items[activeItemIdx].bonuses={};
+  var cur=parseInt(items[activeItemIdx].bonuses[sid])||0;
+  var newVal=cur+dir;
+  if(newVal===0){ removeItemBonus(sid); return; }
+  items[activeItemIdx].bonuses[sid]=newVal;
+  refreshItemBonusPanel();
+  updateAllStatDisplays(); autoSave(); buildItems();
+}
+
+function removeItemBonus(sid){
+  if(activeItemIdx<0) return;
+  if(items[activeItemIdx].bonuses) delete items[activeItemIdx].bonuses[sid];
+  refreshItemBonusPanel();
+  updateAllStatDisplays(); autoSave();
+}
+function quickToggleEquip(i){
+  items[i].equipped=!items[i].equipped;
+  buildItems(); updateAllStatDisplays(); autoSave();
+}
+
+function toggleItemEquipped(toggle){
+  updateAllStatDisplays();
+  if(activeItemIdx<0) return;
+  var newVal=!items[activeItemIdx].equipped;
+  items[activeItemIdx].equipped=newVal;
+  toggle.style.background=newVal?'rgba(201,168,76,0.5)':'rgba(255,255,255,0.08)';
+  var dot=toggle.querySelector('div');
+  dot.style.background=newVal?'#c9a84c':'rgba(255,255,255,0.4)';
+  dot.style.right=newVal?'2px':''; dot.style.left=newVal?'':'2px';
+  buildItems(); autoSave();
+}
+
+function toggleItemMagic(toggle){
+  if(activeItemIdx<0) return;
+  var newVal=!items[activeItemIdx].magic;
+  items[activeItemIdx].magic=newVal;
+  toggle.style.background=newVal?'rgba(160,80,255,0.5)':'rgba(255,255,255,0.08)';
+  var dot=toggle.querySelector('div');
+  dot.style.background=newVal?'#cc88ff':'rgba(255,255,255,0.4)';
+  dot.style.right=newVal?'2px':'';
+  dot.style.left=newVal?'':'2px';
+  buildItems(); autoSave();
+}
+
+function closeItemModal(isNew){
+  if(isNew && activeItemIdx>=0 && !items[activeItemIdx].name.trim()){
+    items.splice(activeItemIdx,1);
+  }
+  document.getElementById('spellModal').classList.remove('show');
+  buildItems();
+  activeItemIdx = -1;
+}
+
+// ── ATTACK MODAL ──
+var activeAtkIdx = -1;
+function openAtkModal(i, isNew){
+  isNew = isNew || false;
+  window._atkModalIsNew = isNew;
+  activeAtkIdx = i;
+  var a = attacks[i];
+  var inStyle = 'width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(201,168,76,0.2);border-radius:8px;color:#f0e6c8;font-size:15px;padding:8px 10px;outline:none;font-family:Georgia,serif;margin-bottom:12px;';
+  var lbStyle = 'font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#a08c60;margin-bottom:4px;display:block;';
+  var g2 = 'display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:0;';
+  var modal = document.querySelector('#spellModal .modal');
+  var mCols=['rgba(255,255,255,0.06)','rgba(40,100,40,0.3)','rgba(30,60,140,0.3)','rgba(80,20,120,0.3)'];
+  var mBorders=['rgba(201,168,76,0.15)','rgba(100,180,100,0.5)','rgba(100,160,255,0.5)','rgba(200,100,255,0.5)'];
+  var mText=['#a08c60','#7dbb7d','#7ab0ff','#cc88ff'];
+  var mLabels=['Keine','+1','+2','+3'];
+  var magicBtns='';
+  for(var mi=0;mi<4;mi++){
+    var isA=(a.magic||0)===mi;
+    magicBtns+='<button data-m="'+mi+'" onclick="setAtkMagic('+mi+')" style="flex:1;padding:7px 4px;border-radius:8px;border:1px solid '+(isA?mBorders[mi]:'rgba(201,168,76,0.1)')+';background:'+(isA?mCols[mi]:'rgba(255,255,255,0.03)')+';color:'+(isA?mText[mi]:'#a08c60')+';font-size:12px;">'+mLabels[mi]+'</button>';
+  }
+  modal.innerHTML =
+    '<button class="modal-close" onclick="closeAtkModal(window._atkModalIsNew)">✕</button>'+
+    '<span style="'+lbStyle+'">Name</span>'+
+    '<input value="'+(a.name||'')+'" placeholder="Angriffsname..." '+
+      'oninput="attacks[activeAtkIdx].name=this.value;autoSave();" '+
+      'style="'+inStyle+'font-size:18px;font-weight:bold;color:#e8cc7a;">'+
+    '<div style="'+g2+'">'+
+      '<div><span style="'+lbStyle+'">Angriffsbonus</span>'+
+        '<input value="'+(a.bonus||'')+'" placeholder="+0" oninput="attacks[activeAtkIdx].bonus=this.value;autoSave();" style="'+inStyle+'"></div>'+
+      '<div><span style="'+lbStyle+'">Schaden</span>'+
+        '<input value="'+(a.dmg||'')+'" placeholder="1W6" oninput="attacks[activeAtkIdx].dmg=this.value;autoSave();" style="'+inStyle+'"></div>'+
+      '<div><span style="'+lbStyle+'">Schadenstyp</span>'+
+        '<input value="'+(a.type||'')+'" placeholder="Stich" oninput="attacks[activeAtkIdx].type=this.value;autoSave();" style="'+inStyle+'"></div>'+
+      '<div><span style="'+lbStyle+'">Reichweite</span>'+
+        '<input value="'+(a.range||'')+'" placeholder="1,5m" oninput="attacks[activeAtkIdx].range=this.value;autoSave();" style="'+inStyle+'"></div>'+
+    '</div>'+
+    '<span style="'+lbStyle+'">Magiestufe</span>'+
+    '<div style="display:flex;gap:6px;margin-bottom:10px;">'+magicBtns+'</div>'+
+    '<span style="'+lbStyle+'">Bezeichnung (z.B. Flammend +1)</span>'+
+    '<input value="'+(a.magicLabel||'')+'" placeholder="optional..." '+
+      'oninput="attacks[activeAtkIdx].magicLabel=this.value;autoSave();buildAtks();" '+
+      'style="'+inStyle+'">'+
+    '<span style="'+lbStyle+'">Notizen</span>'+
+    '<textarea placeholder="Beschreibung, Effekte..." '+
+      'oninput="attacks[activeAtkIdx].notes=this.value;autoSave();" '+
+      'style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.15);border-radius:10px;color:#f0e6c8;font-size:15px;line-height:1.8;padding:12px;resize:none;min-height:80px;outline:none;font-family:Georgia,serif;">'+(a.notes||'')+'</textarea>'+
+    '<button class="modal-save" onclick="closeAtkModal()">✓ Fertig</button>';
+  document.getElementById('spellModal').classList.add('show');
+}
+function setAtkMagic(m){
+  if(activeAtkIdx<0) return;
+  attacks[activeAtkIdx].magic=m;
+  autoSave();
+  buildAtks();
+  // Update button highlight
+  var btns=document.querySelectorAll('[data-m]');
+  var cols=['rgba(255,255,255,0.06)','rgba(40,100,40,0.3)','rgba(30,60,140,0.3)','rgba(80,20,120,0.3)'];
+  var borders=['rgba(201,168,76,0.15)','rgba(100,180,100,0.5)','rgba(100,160,255,0.5)','rgba(200,100,255,0.5)'];
+  var textcols=['#a08c60','#7dbb7d','#7ab0ff','#cc88ff'];
+  for(var i=0;i<btns.length;i++){
+    var mi=parseInt(btns[i].getAttribute('data-m'));
+    btns[i].style.background = mi===m ? cols[m] : 'rgba(255,255,255,0.03)';
+    btns[i].style.borderColor = mi===m ? borders[m] : 'rgba(201,168,76,0.1)';
+    btns[i].style.color = mi===m ? textcols[m] : '#a08c60';
+  }
+}
+
+function closeAtkModal(isNew){
+  if(isNew && activeAtkIdx>=0 && !attacks[activeAtkIdx].name.trim()){
+    attacks.splice(activeAtkIdx,1);
+  }
+  document.getElementById('spellModal').classList.remove('show');
+  buildAtks();
+  activeAtkIdx = -1;
+}
+
+function saveSpellNote(){
+  if(activeSpellIdx>=0){
+    var n=document.getElementById('modalSpellNotes');
+    if(n) spells[activeSpellIdx].notes=n.value;
+    autoSave();
+  }
+}
+function closeSpellModal(e){ if(e.target===document.getElementById('spellModal')) closeSpellModalDirect(window._spellModalIsNew); }
+function closeSpellModalDirect(isNew){
+  if(isNew && activeSpellIdx>=0 && !spells[activeSpellIdx].name.trim()){
+    spells.splice(activeSpellIdx,1);
+  }
+  document.getElementById('spellModal').classList.remove('show');
+  buildSpells();
+  activeSpellIdx=-1;
+}
+
+// ── ITEMS ──
+// ── COINS ──
+function buildCoins(){
+  var grid=document.getElementById('coinsGrid');
+  if(!grid) return;
+  grid.innerHTML='';
+  for(var i=0;i<coinTypes.length;i++){
+    var ct=coinTypes[i];
+    var val=coins[ct.key]||0;
+    var btn=document.createElement('button');
+    btn.setAttribute('data-coinkey', ct.key);
+    btn.style.cssText='background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.12);border-radius:10px;padding:8px 4px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:2px;';
+    btn.innerHTML='<span style="font-size:10px;letter-spacing:1px;color:'+ct.color+';font-weight:bold;">'+ct.key+'</span>'+
+      '<span style="font-size:18px;color:#f0e6c8;font-weight:bold;">'+val+'</span>'+
+      '<span style="font-size:9px;color:#a08c60;">'+ct.label+'</span>';
+    btn.addEventListener('click', function(){ openCoinModal(this.getAttribute('data-coinkey')); });
+    grid.appendChild(btn);
+  }
+}
+
+var activeCoinKey='';
+function openCoinModal(key){
+  activeCoinKey=key;
+  var ct=coinTypes.find(function(c){return c.key===key;});
+  var modal=document.querySelector('#spellModal .modal');
+
+  // Build coin type switcher using DOM
+  var switcherDiv=document.createElement('div');
+  switcherDiv.style.cssText='display:flex;gap:6px;';
+  coinTypes.forEach(function(ct2){
+    var isActive=ct2.key===key;
+    var b=document.createElement('button');
+    b.textContent=ct2.key;
+    b.setAttribute('data-ctype', ct2.key);
+    b.style.cssText='flex:1;padding:7px 2px;border-radius:8px;font-size:12px;font-weight:'+(isActive?'bold':'normal')+';border:1px solid '+(isActive?ct2.color:'rgba(201,168,76,0.12)')+';background:'+(isActive?'rgba(255,255,255,0.08)':'rgba(255,255,255,0.03)')+';color:'+(isActive?ct2.color:'#a08c60')+';';
+    b.addEventListener('click', function(){ switchCoinType(this.getAttribute('data-ctype')); });
+    switcherDiv.appendChild(b);
+  });
+
+  // Build quick amount buttons
+  var quickDiv=document.createElement('div');
+  quickDiv.style.cssText='display:flex;gap:6px;margin-bottom:14px;';
+  [5,10,25,50,100].forEach(function(n){
+    var b=document.createElement('button');
+    b.textContent=n;
+    b.style.cssText='flex:1;padding:7px 2px;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.12);border-radius:8px;color:#a08c60;font-size:12px;';
+    b.addEventListener('click', function(){ document.getElementById('coinAdjAmt').value=n; });
+    quickDiv.appendChild(b);
+  });
+
+  modal.innerHTML=
+    '<button class="modal-close" onclick="closeCoinModal()">✕</button>'+
+    '<div style="text-align:center;margin-bottom:16px;">'+
+      '<div style="font-size:28px;font-weight:bold;color:'+ct.color+';margin-bottom:4px;">'+ct.key+'</div>'+
+      '<div style="font-size:13px;color:#a08c60;letter-spacing:2px;text-transform:uppercase;">'+ct.label+'</div>'+
+    '</div>'+
+    '<div style="text-align:center;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.15);border-radius:12px;padding:16px;margin-bottom:16px;">'+
+      '<div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#a08c60;margin-bottom:6px;">Aktueller Bestand</div>'+
+      '<div id="coinCurrentVal" style="font-size:36px;font-weight:bold;color:#f0e6c8;">'+(coins[key]||0)+'</div>'+
+    '</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">'+
+      '<button onclick="adjCoin(-1)" style="padding:14px;background:rgba(192,57,43,0.15);border:1px solid rgba(192,57,43,0.3);border-radius:10px;color:#e87070;font-size:22px;">−</button>'+
+      '<button onclick="adjCoin(1)" style="padding:14px;background:rgba(39,174,96,0.12);border:1px solid rgba(39,174,96,0.3);border-radius:10px;color:#7dbb7d;font-size:22px;">+</button>'+
+    '</div>'+
+    '<input id="coinAdjAmt" type="number" value="1" min="1" style="width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(201,168,76,0.2);border-radius:10px;color:#f0e6c8;font-size:22px;padding:10px;text-align:center;outline:none;margin-bottom:10px;">'+
+    '<div id="coinQuickBtns"></div>'+
+    '<div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#a08c60;margin-bottom:6px;margin-top:4px;">Direkt setzen</div>'+
+    '<input id="coinSetAmt" type="number" min="0" placeholder="Neuer Wert..." style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.12);border-radius:10px;color:#f0e6c8;font-size:17px;padding:8px;text-align:center;outline:none;margin-bottom:6px;">'+
+    '<button onclick="setCoinDirect()" style="width:100%;padding:10px;background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.25);border-radius:10px;color:#c9a84c;font-size:14px;margin-bottom:14px;">Setzen</button>'+
+    '<div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#a08c60;margin-bottom:8px;">Münzart wechseln</div>'+
+    '<div id="coinSwitcher"></div>';
+
+  document.getElementById('coinQuickBtns').appendChild(quickDiv);
+  document.getElementById('coinSwitcher').appendChild(switcherDiv);
+  document.getElementById('spellModal').classList.add('show');
+}
+
+function adjCoin(dir){
+  var amt=parseInt(document.getElementById('coinAdjAmt').value)||1;
+  coins[activeCoinKey]=Math.max(0,(coins[activeCoinKey]||0)+amt*dir);
+  document.getElementById('coinCurrentVal').textContent=coins[activeCoinKey];
+  buildCoins(); autoSave();
+}
+function setAdjAmt(n){
+  document.getElementById('coinAdjAmt').value=n;
+}
+function setCoinDirect(){
+  var val=parseInt(document.getElementById('coinSetAmt').value);
+  if(!isNaN(val)&&val>=0){
+    coins[activeCoinKey]=val;
+    document.getElementById('coinCurrentVal').textContent=val;
+    document.getElementById('coinSetAmt').value='';
+    buildCoins(); autoSave();
+  }
+}
+function switchCoinType(key){
+  closeCoinModal();
+  setTimeout(function(){ openCoinModal(key); },50);
+}
+function closeCoinModal(){
+  document.getElementById('spellModal').classList.remove('show');
+  buildCoins();
+}
+
+function buildItems(){
+  var html='';
+  for(var i=0;i<items.length;i++){
+    var it=items[i];
+    var hasNote=it.notes&&it.notes.length>0;
+    var isMagic=it.magic||false;
+  var isEquipped=it.equipped||false;
+    var isEquipped=it.equipped||false;
+    var rowClass='item-row'+(isMagic?' magic':'')+(isEquipped?' equipped':'');
+    var nameColor=isMagic?'#cc88ff':isEquipped?'var(--gold-light)':'var(--text-main)';
+    html+='<div class="'+rowClass+'">'+
+      '<button onclick="quickToggleEquip('+i+')" title="Ausrüsten" style="background:none;border:none;padding:0 4px;display:flex;align-items:center;">'+
+        '<div class="item-equip-dot'+(isEquipped?' on':'')+'"></div>'+
+      '</button>'+
+      '<button onclick="openItemModal('+i+')" style="flex:1;background:none;border:none;text-align:left;padding:0;color:'+nameColor+';font-size:15px;display:flex;align-items:center;gap:5px;">'+
+        (isMagic?'<span class="item-magic-gem">✨</span>':'')+
+        '<span>'+(it.name||'Gegenstand')+'</span>'+
+        (hasNote?'<span style="color:var(--gold-dim);font-size:11px;">✎</span>':'')+
+      '</button>'+
+      '<input class="item-qty-in" type="number" value="'+it.qty+'" min="0" oninput="items['+i+'].qty=parseInt(this.value)||0;autoSave()">'+
+      '<button class="item-del" onclick="delItem('+i+')">✕</button>'+
+    '</div>';
+  }
+  document.getElementById('itemList').innerHTML=html;
+}
+function addItem(){
+  items.push({name:'',qty:1,notes:''});
+  buildItems();
+  openItemModal(items.length-1, true);
+}
+function delItem(i){ items.splice(i,1); buildItems(); autoSave(); }
+
+// ── TOAST ──
+function toast(msg){ var t=document.getElementById('toast'); t.textContent=msg; t.className='show'; setTimeout(function(){ t.className=''; },2400); }
+
+// ── QR CODE ──
+function showQR(){
+  // Compress: strip large notes for sharing, keep essentials
+  var data = gather();
+  var code = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+  document.getElementById('shareCodeArea').value = code;
+  document.getElementById('importCodeArea').value = '';
+  document.getElementById('qrModal').classList.add('show');
+}
+function copyShareCode(){
+  var area = document.getElementById('shareCodeArea');
+  area.select();
+  try {
+    document.execCommand('copy');
+    toast('📋 Code kopiert!');
+  } catch(e) {
+    // iOS fallback
+    var range = document.createRange();
+    range.selectNode(area);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+    toast('Code markiert — lange drücken und kopieren');
+  }
+}
+function importShareCode(){
+  var code = document.getElementById('importCodeArea').value.trim();
+  if(!code){ toast('⚠ Kein Code eingegeben'); return; }
+  try {
+    var data = JSON.parse(decodeURIComponent(escape(atob(code))));
+    applyData(data);
+    closeQrModalDirect();
+    toast('✦ Charakter geladen');
+  } catch(e) {
+    toast('⚠ Ungültiger Code');
+  }
+}
+function closeQrModal(e){ if(e.target===document.getElementById('qrModal')) closeQrModalDirect(); }
+function closeQrModalDirect(){ document.getElementById('qrModal').classList.remove('show'); }
+function printChar(){
+  closeQrModalDirect();
+  // Open the page in a real Safari tab where printing works
+  var blob = new Blob([document.documentElement.outerHTML], {type:'text/html'});
+  var url = URL.createObjectURL(blob);
+  window.open(url, '_blank');
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 10000);
+  toast('Im neuen Tab: Teilen → Als PDF sichern');
+}
+
+// ── MULTIPLE CHARACTERS ──
+function buildCharSwitcher(){
+  var el=document.getElementById('charSwitcher');
+  el.innerHTML='';
+  for(var i=0;i<characters.length;i++){
+    (function(idx){
+      var btn=document.createElement('button');
+      btn.className='char-tab'+(idx===activeCharIdx?' active':'');
+      btn.textContent=characters[idx].charName||'Charakter '+(idx+1);
+      btn.addEventListener('click', function(){ switchChar(idx); });
+      // Long press to delete
+      var pressTimer;
+      btn.addEventListener('touchstart', function(e){
+        pressTimer=setTimeout(function(){ confirmDeleteChar(idx); }, 600);
+      }, {passive:true});
+      btn.addEventListener('touchend', function(){ clearTimeout(pressTimer); });
+      btn.addEventListener('touchmove', function(){ clearTimeout(pressTimer); });
+      // Right-click / long click on desktop
+      btn.addEventListener('contextmenu', function(e){ e.preventDefault(); confirmDeleteChar(idx); });
+      el.appendChild(btn);
+    })(i);
+  }
+  var addBtn=document.createElement('button');
+  addBtn.className='char-tab add-char';
+  addBtn.textContent='+ Neu';
+  addBtn.addEventListener('click', newChar);
+  el.appendChild(addBtn);
+}
+function switchChar(i){
+  if(i===activeCharIdx) return;
+  characters[activeCharIdx]=gather();
+  activeCharIdx=i;
+  applyData(characters[i]);
+  buildCharSwitcher();
+  toast('Charakter gewechselt');
+}
+function newChar(){
+  characters[activeCharIdx]=gather();
+  var blank={charName:'Neuer Charakter',charSub:'Klasse · Level 1 · Rasse',hp:10,temp:0,insp:false,maxHp:'10',profBonus:'+2',passPerc:'10',spells:[],attacks:[],items:[],skills:skills.map(function(s){return{name:s.name,attr:s.attr,val:'0',p:0};})};
+  characters.push(blank);
+  activeCharIdx=characters.length-1;
+  applyData(blank);
+  buildCharSwitcher();
+  toast('Neuer Charakter erstellt');
+}
+
+// ── GATHER / APPLY ──
+function gather(){
+  function v(id){ var e=document.getElementById(id); return e?e.value:''; }
+  return {
+    charName:v('charName'),charSub:v('charSub'),
+    statRK:v('statRK'),statINI:v('statINI'),statBEW:v('statBEW'),
+    hp:hp,temp:temp,insp:insp,
+    maxHp:v('maxHp'),profBonus:v('profBonus'),passPerc:v('passPerc'),
+    aSTAm:v('aSTAm'),aSTAv:v('aSTAv'),aGESm:v('aGESm'),aGESv:v('aGESv'),
+    aKONm:v('aKONm'),aKONv:v('aKONv'),aINTm:v('aINTm'),aINTv:v('aINTv'),
+    aWEIm:v('aWEIm'),aWEIv:v('aWEIv'),aCHAm:v('aCHAm'),aCHAv:v('aCHAv'),
+    saves:Array.from(document.querySelectorAll('#savesGrid .tile')).map(function(t){ return{active:t.classList.contains('active'),val:t.querySelector('.editable').value}; }),
+    deaths:{
+      s:Array.from(document.querySelectorAll('.d-tile')).slice(0,3).map(function(b){return b.classList.contains('s-active');}),
+      f:Array.from(document.querySelectorAll('.d-tile')).slice(3,6).map(function(b){return b.classList.contains('f-active');})
+    },
+    exhaustion:exhaustion,hdUsed:hdUsed.slice(),hdType:v('hdType'),
+    skills:skills.map(function(s){return{name:s.name,attr:s.attr,val:s.val,p:s.p};}),
+    attacks:attacks.map(function(a){return{name:a.name,bonus:a.bonus,dmg:a.dmg,type:a.type,range:a.range,notes:a.notes||'',magic:a.magic||0,magicLabel:a.magicLabel||''};}),
+    slotDef:slotDef.map(function(s){return{lv:s.lv,total:s.total};}),
+    slotUsed:slotUsed.slice(),
+    spellAttr:v('spellAttr'),spellDC:v('spellDC'),spellAtk:v('spellAtk'),
+    spells:spells.map(function(s){return{name:s.name,prep:s.prep,lv:s.lv,notes:s.notes||'',conc:s.conc||false};}),
+    coins:{KM:coins.KM,SM:coins.SM,EM:coins.EM,GM:coins.GM,PM:coins.PM},
+    items:items.map(function(i){return{name:i.name,qty:i.qty,notes:i.notes||'',magic:i.magic||false,equipped:i.equipped||false,bonuses:i.bonuses||{}};}),
+    classFeatures:v('classFeatures'),
+    noteBG:v('noteBG'),noteLang:v('noteLang'),noteSession:v('noteSession'),
+    concSpell:concSpell,
+    concWarningEnabled:concWarningEnabled,
+    concWarningEnabled:concWarningEnabled,
+    concWarningEnabled:concWarningEnabled,
+    characters:characters,activeCharIdx:activeCharIdx,
+    restConfig:restConfig,
+    fontSizes:fontSizes.slice()
+  };
+}
+
+function applyData(d){
+  function s(id,val){ var e=document.getElementById(id); if(e&&val!=null) e.value=val; }
+  s('charName',d.charName);s('charSub',d.charSub);
+  s('statRK',d.statRK);s('statINI',d.statINI);s('statBEW',d.statBEW);
+  hp=d.hp||23;temp=d.temp||0;insp=d.insp||false;
+  s('maxHp',d.maxHp);s('profBonus',d.profBonus);s('passPerc',d.passPerc);
+  s('aSTAm',d.aSTAm);s('aSTAv',d.aSTAv);s('aGESm',d.aGESm);s('aGESv',d.aGESv);
+  s('aKONm',d.aKONm);s('aKONv',d.aKONv);s('aINTm',d.aINTm);s('aINTv',d.aINTv);
+  s('aWEIm',d.aWEIm);s('aWEIv',d.aWEIv);s('aCHAm',d.aCHAm);s('aCHAv',d.aCHAv);
+  document.getElementById('inspBtn').className='insp-btn'+(insp?' active':'');
+  if(d.saves){ var tiles=document.querySelectorAll('#savesGrid .tile'); for(var i=0;i<tiles.length;i++){ tiles[i].classList.toggle('active',d.saves[i]&&d.saves[i].active); if(d.saves[i]) tiles[i].querySelector('.editable').value=d.saves[i].val; } }
+  if(d.deaths){ var dt=document.querySelectorAll('.d-tile'); for(var i=0;i<3;i++)dt[i].classList.toggle('s-active',d.deaths.s&&d.deaths.s[i]); for(var i=0;i<3;i++)dt[i+3].classList.toggle('f-active',d.deaths.f&&d.deaths.f[i]); }
+  exhaustion=d.exhaustion||0;
+  hdUsed=d.hdUsed||[];
+  if(d.hdType) s('hdType',d.hdType);
+  if(d.skills) d.skills.forEach(function(sk,i){ if(skills[i]){skills[i].val=sk.val;skills[i].p=sk.p;} });
+  if(d.attacks){ attacks.length=0; d.attacks.forEach(function(a){attacks.push({name:a.name,bonus:a.bonus,dmg:a.dmg,type:a.type,range:a.range,notes:a.notes||'',magic:a.magic||0,magicLabel:a.magicLabel||''});}); }
+  if(d.slotDef) d.slotDef.forEach(function(sd,i){ if(slotDef[i])slotDef[i].total=sd.total; });
+  if(d.slotUsed) d.slotUsed.forEach(function(u,i){ slotUsed[i]=u; });
+  s('spellDC',d.spellDC);s('spellAtk',d.spellAtk);
+  if(d.spells){ spells.length=0; d.spells.forEach(function(sp){spells.push({name:sp.name,prep:sp.prep,lv:sp.lv,notes:sp.notes||'',conc:sp.conc||false});}); }
+  if(d.coins){coins.KM=parseInt(d.coins.KM)||0;coins.SM=parseInt(d.coins.SM)||0;coins.EM=parseInt(d.coins.EM)||0;coins.GM=parseInt(d.coins.GM)||0;coins.PM=parseInt(d.coins.PM)||0;}
+  if(d.items){ items.length=0; d.items.forEach(function(i){items.push({name:i.name,qty:i.qty,notes:i.notes||'',magic:i.magic||false,equipped:i.equipped||false,bonuses:i.bonuses||{}});}); }
+  s('classFeatures',d.classFeatures);s('noteBG',d.noteBG);s('noteLang',d.noteLang);s('noteSession',d.noteSession);
+  if(d.concSpell!==undefined) concSpell=d.concSpell||'';
+  if(d.concWarningEnabled!==undefined){ concWarningEnabled=d.concWarningEnabled; var b=document.getElementById('concWarnToggle'); if(b){ b.textContent=concWarningEnabled?'AN':'AUS'; b.style.background=concWarningEnabled?'rgba(201,168,76,0.5)':'rgba(255,255,255,0.08)'; b.style.color=concWarningEnabled?'#0d0a07':'#a08c60'; } }
+  if(d.concWarningEnabled!==undefined) concWarningEnabled=d.concWarningEnabled;
+  if(d.concWarningEnabled!==undefined) concWarningEnabled=d.concWarningEnabled;
+  if(d.characters){ characters=d.characters; activeCharIdx=d.activeCharIdx||0; }
+  if(d.restConfig){ restConfig=d.restConfig; }
+  if(d.fontSizes){ d.fontSizes.forEach(function(s,i){ fontSizes[i]=s; }); applyAllFontSizes(); }
+  renderBars();buildSkills();buildAtks();buildSlots();buildSpells();buildItems();buildCoins();buildHD();buildExhaustion();buildCharSwitcher();buildRestSettings();buildFontSizePanel();applyAllFontSizes();updateAllStatDisplays();
+}
+
+// ── AUTO SAVE ──
+function autoSave(){
+  try{ localStorage.setItem('dnd_autosave',JSON.stringify(gather())); }catch(e){}
+}
+function autoLoad(){
+  try{
+    // Check URL param first (QR share)
+    var params=new URLSearchParams(window.location.search);
+    var charParam=params.get('char');
+    if(charParam){ applyData(JSON.parse(decodeURIComponent(charParam))); return true; }
+    var raw=localStorage.getItem('dnd_autosave');
+    if(raw){ applyData(JSON.parse(raw)); return true; }
+  }catch(e){}
+  return false;
+}
+
+// ── SAVE / LOAD ──
+async function saveChar(){
+  characters[activeCharIdx]=gather();
+  autoSave();
+  var name=(document.getElementById('charName').value||'charakter').replace(/\s+/g,'_');
+  var json=JSON.stringify(gather(),null,2);
+  if(window.showSaveFilePicker){
+    try{
+      var fh=await window.showSaveFilePicker({suggestedName:name+'.json',types:[{description:'JSON',accept:{'application/json':['.json']}}]});
+      var w=await fh.createWritable(); await w.write(json); await w.close();
+      toast('✦ Gespeichert');
+    }catch(e){ if(e.name!=='AbortError') fallbackSave(name,json); }
+  } else { fallbackSave(name,json); }
+}
+function fallbackSave(name,json){
+  var blob=new Blob([json],{type:'application/json'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a'); a.href=url; a.download=name+'.json'; a.click();
+  URL.revokeObjectURL(url);
+  toast('✦ Gespeichert');
+}
+function loadChar(){ document.getElementById('fileIn').click(); }
+function importFile(e){
+  var file=e.target.files[0]; if(!file) return;
+  var r=new FileReader();
+  r.onload=function(ev){ try{ applyData(JSON.parse(ev.target.result)); toast('✦ Geladen'); }catch(err){ toast('⚠ Fehler'); } };
+  r.readAsText(file); e.target.value='';
+}
+
+// ── INIT ──
+renderBars();buildSkills();buildAtks();buildSlots();buildSpells();buildItems();buildCoins();buildHD();buildExhaustion();buildGeneralSettings();buildRestSettings();buildFontSizePanel();applyAllFontSizes();updateAllStatDisplays();
+characters=[gather()];
+buildCharSwitcher();
+
+if(!autoLoad()){
+  renderBars();
+}
+
+// Auto-save on any interaction
+document.addEventListener('input',function(){ clearTimeout(window._st); window._st=setTimeout(autoSave,800); });
+document.addEventListener('click',function(){ clearTimeout(window._st); window._st=setTimeout(autoSave,800); });
+</script>
+</body>
+</html>
