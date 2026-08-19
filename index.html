@@ -239,7 +239,6 @@ input, textarea { color:var(--text-main); background:transparent; border:none; o
 .modal-save { width:100%; margin-top:12px; padding:12px; background:rgba(201,168,76,0.18); border:1px solid rgba(201,168,76,0.3); border-radius:10px; color:var(--gold-light); font-size:14px; }
 
 /* QR */
-.pdf-btn { width:100%; padding:12px; background:rgba(100,100,200,0.15); border:1px solid rgba(100,100,200,0.3); border-radius:10px; color:#99aaff; font-size:14px; margin-top:10px; }
 
 .bonus-picker-overlay { position:fixed; bottom:0; left:0; right:0; background:rgba(10,7,4,0.9); border-top:1px solid rgba(201,168,76,0.25); border-radius:20px 20px 0 0; z-index:6000; padding:16px 16px 30px; transform:translateY(100%); transition:transform 0.3s cubic-bezier(0.4,0,0.2,1); }
 .bonus-picker-overlay.show { transform:translateY(0); }
@@ -410,7 +409,7 @@ body.master-mode { padding-top: 58px; }
   <div style="display:flex; align-items:center; gap:10px;">
     <span style="color:var(--gold); font-weight:700; font-size:13px; letter-spacing:1px;">👑 MASTER</span>
     <div id="masterTabsInner" style="display:flex; gap:6px; flex-wrap:wrap; flex:1;"></div>
-    <button id="logoutBtn" onclick="doLogout()" style="display:none; background:transparent; border:1px solid var(--card-border); border-radius:6px; color:var(--text-dim); font-size:12px; padding:4px 10px; cursor:pointer;">Logout</button>
+
   </div>
   <!-- Master Notizen Panel -->
   <div id="masterNotesPanel" style="display:none; background:var(--bg); border:1px solid var(--card-border); border-radius:8px; padding:12px; margin-top:4px;">
@@ -430,10 +429,6 @@ body.master-mode { padding-top: 58px; }
   </div>
 </div>
 
-<!-- Logout-Button für Spieler (außerhalb Master-Bar) -->
-<div id="playerLogoutWrap" style="position:fixed; top:8px; right:8px; z-index:600; display:none;">
-  <button id="logoutBtnPlayer" onclick="doLogout()" style="background:transparent; border:1px solid var(--card-border); border-radius:6px; color:var(--text-dim); font-size:12px; padding:4px 10px; cursor:pointer;">Logout</button>
-</div>
 
 <!-- APP ROOT (alles einwickeln für Login-Gate) -->
 <div id="appRoot" style="display:none;">
@@ -446,24 +441,6 @@ body.master-mode { padding-top: 58px; }
   </div>
 </div>
 
-<!-- SHARE MODAL -->
-<div class="modal-overlay" id="qrModal" onclick="closeQrModal(event)">
-  <div class="modal" style="position:relative;">
-    <button class="modal-close" onclick="closeQrModalDirect()">✕</button>
-    <div class="modal-title">Charakter teilen</div>
-    <div class="modal-sub" style="margin-bottom:14px;">Kopiere den Code und füge ihn auf einem anderen Gerät ein</div>
-    <textarea id="shareCodeArea" readonly
-      style="width:100%;height:120px;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.2);border-radius:10px;color:#a08c60;font-size:11px;padding:10px;resize:none;outline:none;font-family:monospace;word-break:break-all;"></textarea>
-    <button onclick="copyShareCode()" style="width:100%;margin-top:8px;padding:12px;background:rgba(201,168,76,0.18);border:1px solid rgba(201,168,76,0.3);border-radius:10px;color:#e8cc7a;font-size:14px;">📋 Code kopieren</button>
-    <div style="margin:14px 0 6px;border-top:1px solid rgba(201,168,76,0.15);padding-top:14px;">
-      <div class="modal-sub" style="margin-bottom:8px;">Code von anderem Gerät einfügen</div>
-      <textarea id="importCodeArea" placeholder="Code hier einfügen..."
-        style="width:100%;height:80px;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.2);border-radius:10px;color:#f0e6c8;font-size:11px;padding:10px;resize:none;outline:none;font-family:monospace;word-break:break-all;"></textarea>
-      <button onclick="importShareCode()" style="width:100%;margin-top:8px;padding:12px;background:rgba(39,174,96,0.12);border:1px solid rgba(39,174,96,0.3);border-radius:10px;color:#5dba7d;font-size:14px;">📥 Charakter laden</button>
-    </div>
-    <button class="pdf-btn" onclick="printChar()">🖨 Als PDF drucken / speichern</button>
-  </div>
-</div>
 
 <div id="outer">
 <div id="container">
@@ -696,18 +673,13 @@ body.master-mode { padding-top: 58px; }
   <div class="card"><div class="card-title">Sprachen & Kundigkeit</div><textarea class="notes-ta" id="noteLang" style="min-height:100px;" placeholder="Gnomisch, Gemeinsprache..."></textarea></div>
   <div class="card"><div class="card-title">Sitzungsnotizen</div><textarea class="notes-ta" id="noteSession" placeholder="Notizen..."></textarea></div>
 
-  <div class="divider"><span>Einstellungen</span></div>
+  <div class="divider"><span>Konto</span></div>
 
   <div class="card">
-    <div class="save-row">
-      <button class="save-btn prim" data-nosave onclick="saveChar()">💾 Speichern</button>
-      <label class="save-btn sec" for="fileIn" style="display:flex;align-items:center;justify-content:center;cursor:pointer;margin:0;">📂 Laden</label>
-    </div>
-    <input type="file" id="fileIn" accept=".json" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;" onchange="importFile(event)">
-    <div style="height:8px;"></div>
-    <div class="save-row">
-      <button class="save-btn sec" onclick="showQR()">📲 Teilen</button>
-    </div>
+    <div style="font-size:11px;letter-spacing:1px;color:var(--text-dim);margin-bottom:10px;">Automatische Cloud-Synchronisation aktiv ✓</div>
+    <button onclick="doLogout()" style="width:100%;padding:12px;background:rgba(180,60,60,0.15);border:1px solid rgba(180,60,60,0.35);border-radius:10px;color:#e07070;font-size:13px;font-family:Georgia,serif;letter-spacing:1px;cursor:pointer;">
+      Abmelden
+    </button>
   </div>
 
   <div class="card">
@@ -2292,57 +2264,7 @@ function delItem(i){ items.splice(i,1); buildItems(); autoSave(); }
 function toast(msg){ var t=document.getElementById('toast'); t.textContent=msg; t.className='show'; setTimeout(function(){ t.className=''; },2400); }
 
 // ── QR CODE ──
-function showQR(){
-  // Compress: strip large notes for sharing, keep essentials
-  var data = gather();
-  var code = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
-  document.getElementById('shareCodeArea').value = code;
-  document.getElementById('importCodeArea').value = '';
-  document.getElementById('qrModal').classList.add('show');
-}
-function copyShareCode(){
-  var area = document.getElementById('shareCodeArea');
-  var text = area.value;
-  if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(text).then(function(){
-      toast('📋 Code kopiert!');
-    }).catch(function(){
-      selectAllText(area);
-    });
-  } else {
-    selectAllText(area);
-  }
-}
-function importShareCode(){
-  var code = document.getElementById('importCodeArea').value.trim();
-  if(!code){ toast('⚠ Kein Code eingegeben'); return; }
-  try {
-    var data = JSON.parse(decodeURIComponent(escape(atob(code))));
-    // Save current character first
-    characters[activeCharIdx] = gather();
-    // Add as new character
-    characters.push(data);
-    activeCharIdx = characters.length - 1;
-    applyData(data);
-    buildCharSwitcher();
-    autoSave();
-    closeQrModalDirect();
-    toast('✦ Charakter hinzugefügt');
-  } catch(e) {
-    toast('⚠ Ungültiger Code');
-  }
-}
-function closeQrModal(e){ if(e.target===document.getElementById('qrModal')) closeQrModalDirect(); }
-function closeQrModalDirect(){ document.getElementById('qrModal').classList.remove('show'); }
-function printChar(){
-  closeQrModalDirect();
-  // Open the page in a real Safari tab where printing works
-  var blob = new Blob([document.documentElement.outerHTML], {type:'text/html'});
-  var url = URL.createObjectURL(blob);
-  window.open(url, '_blank');
-  setTimeout(function(){ URL.revokeObjectURL(url); }, 10000);
-  toast('Im neuen Tab: Teilen → Als PDF sichern');
-}
+
 
 // ── MULTIPLE CHARACTERS ──
 function buildCharSwitcher(){
@@ -2598,20 +2520,26 @@ function initPlayerMode() {
           toast('📋 Master hat deinen Bogen aktualisiert');
         } catch(e) {}
       } else if (!d._lastEditedBy) {
-        // Erstmaliges Laden
+        // Erstmaliges Laden — _fbLastSaved initialisieren
         try {
           if (d.chars && d.chars.length > 0) {
             characters = d.chars;
             activeCharIdx = 0;
             applyData(characters[0]);
+            // Basis-Stand für Diff merken
+            characters.forEach(function(c, i) {
+              _fbLastSaved[i] = JSON.parse(JSON.stringify(c));
+            });
           } else {
             applyData(d);
+            _fbLastSaved[0] = JSON.parse(JSON.stringify(d));
           }
           buildCharSwitcher();
+          localSave(); // localStorage synchronisieren
         } catch(e) {}
       }
     } else {
-      // Kein Cloud-Save → localStorage
+      // Kein Cloud-Save → localStorage laden, beim nächsten autoSave hochladen
       localLoad();
     }
   }, function(e) {
@@ -2619,9 +2547,7 @@ function initPlayerMode() {
     localLoad();
   });
   fbListeners.push(unsub);
-  // Logout-Button für Spieler anzeigen
-  var pw = document.getElementById('playerLogoutWrap');
-  if (pw) pw.style.display = '';
+
 }
 
 // ════════════════════════════════════════════════
@@ -2634,7 +2560,7 @@ var masterEditingPlayer = false; // Master bearbeitet Spieler-Bogen
 function initMasterMode() {
   // Master-UI einblenden
   document.getElementById('masterBar').style.display = 'flex';
-  document.getElementById('logoutBtn').style.display = '';
+
   // Alle Spieler-Dokumente laden (Echtzeit)
   var unsub = fbDb.collection('characters').onSnapshot(function(snap) {
     snap.forEach(function(doc) {
@@ -2662,8 +2588,12 @@ function loadMasterOwnChar() {
       if (d.chars && d.chars.length > 0) {
         characters = d.chars;
         applyData(characters[0]);
+        characters.forEach(function(c, i) {
+          _fbLastSaved[i] = JSON.parse(JSON.stringify(c));
+        });
       } else {
         applyData(d);
+        _fbLastSaved[0] = JSON.parse(JSON.stringify(d));
       }
       buildCharSwitcher();
     } else {
@@ -2675,14 +2605,19 @@ function loadMasterOwnChar() {
 function masterLoadPlayer(uid) {
   masterActiveUid = uid;
   masterEditingPlayer = true;
+  _fbLastSaved = {}; // Reset Diff-Basis für neuen Spieler
   var pd = masterPlayers[uid];
   if (!pd) return;
   var d = pd.data;
   if (d.chars && d.chars.length > 0) {
     characters = d.chars;
     applyData(characters[0]);
+    characters.forEach(function(c, i) {
+      _fbLastSaved[i] = JSON.parse(JSON.stringify(c));
+    });
   } else {
     applyData(d);
+    _fbLastSaved[0] = JSON.parse(JSON.stringify(d));
   }
   buildCharSwitcher();
   buildMasterTabs();
@@ -2819,29 +2754,82 @@ function escHtml(s) {
 }
 
 // ════════════════════════════════════════════════
-// ── SPEICHERN ──
+// ── SPEICHERN (Diff-basiert) ──
 // ════════════════════════════════════════════════
+
+// Letzter bekannter Firestore-Stand pro Charakter-Index
+var _fbLastSaved = {}; // charIdx → flattened field snapshot
+
+// Flacht einen Charakter-Objekt zu Firestore-Update-Pfaden ab
+// z.B. { hp: 23, skills: [...] } → { "chars.0.hp": 23, "chars.0.skills": [...] }
+function _flattenDiff(charIdx, newData, oldData) {
+  var update = {};
+  var prefix = 'chars.' + charIdx + '.';
+  Object.keys(newData).forEach(function(key) {
+    var newVal = newData[key];
+    var oldVal = oldData ? oldData[key] : undefined;
+    // Arrays und Objekte immer als JSON-String vergleichen
+    var newStr = JSON.stringify(newVal);
+    var oldStr = JSON.stringify(oldVal);
+    if (newStr !== oldStr) {
+      update[prefix + key] = newVal;
+    }
+  });
+  return update;
+}
+
 function fbSave() {
+  if (!fbUser) return;
   try {
     var snap = gather();
     characters[activeCharIdx] = snap;
     var targetUid = (masterEditingPlayer && masterActiveUid) ? masterActiveUid : fbUser.uid;
-    var saveData = {
-      chars: characters.map(function(c){ return c; }),
-      activeCharIdx: activeCharIdx,
-      _lastEditedBy: fbUser.uid,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    };
-    fbDb.collection('characters').doc(targetUid).set(saveData)
-      .catch(function(e){ console.warn('Firestore Fehler:', e); });
-  } catch(e) {}
+    var charIdx   = activeCharIdx;
+
+    // Diff berechnen
+    var diff = _flattenDiff(charIdx, snap, _fbLastSaved[charIdx]);
+
+    if (Object.keys(diff).length === 0) return; // Nichts geändert
+
+    // Metafelder immer mitschicken (minimale Overhead)
+    diff['activeCharIdx']  = charIdx;
+    diff['_lastEditedBy']  = fbUser.uid;
+    diff['updatedAt']      = firebase.firestore.FieldValue.serverTimestamp();
+
+    var docRef = fbDb.collection('characters').doc(targetUid);
+
+    // Erstes Mal: set() mit merge, danach update()
+    var savePromise = _fbLastSaved[charIdx]
+      ? docRef.update(diff)
+      : docRef.set(
+          (function() {
+            var full = { activeCharIdx: charIdx, _lastEditedBy: fbUser.uid,
+                         updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
+            full['chars'] = characters.map(function(c){ return c; });
+            return full;
+          })(),
+          { merge: true }
+        );
+
+    savePromise
+      .then(function() {
+        // Lokalen Stand aktualisieren
+        _fbLastSaved[charIdx] = JSON.parse(JSON.stringify(snap));
+        localSave(); // localStorage immer aktuell halten
+      })
+      .catch(function(e) {
+        console.warn('Firestore Fehler:', e);
+        localSave(); // Fallback
+      });
+
+  } catch(e) { localSave(); }
 }
 
 function localSave() {
   try {
     var snap = gather();
     characters[activeCharIdx] = snap;
-    var saveData = {chars: characters.map(function(c){ return c; }), activeCharIdx: activeCharIdx};
+    var saveData = { chars: characters.map(function(c){ return c; }), activeCharIdx: activeCharIdx };
     localStorage.setItem('dnd_autosave', JSON.stringify(saveData));
   } catch(e) {}
 }
@@ -2872,14 +2860,15 @@ function localLoad() {
 function doLogout() {
   fbListeners.forEach(function(u) { try { u(); } catch(e){} });
   fbListeners = [];
+  _fbLastSaved = {};
   fbAuth.signOut();
 }
 
 // ── AUTO SAVE ──
-function autoSave(){
-  localSave();
+function autoSave() {
+  // Debounce: 1.5s nach letzter Änderung speichern
   clearTimeout(fbSaveTimer);
-  fbSaveTimer = setTimeout(function() { fbSave(); }, 800);
+  fbSaveTimer = setTimeout(function() { fbSave(); }, 1500);
 }
 
 function autoLoad(){
@@ -2903,98 +2892,7 @@ function autoLoad(){
 }
 
 // ── SAVE / LOAD ──
-function saveChar(){
-  clearTimeout(window._st); // prevent click-listener autoSave from firing
-  var snapshot=gather();
-  characters[activeCharIdx]=snapshot;
-  // autoSave without re-calling gather()
-  try{
-    var saveData=JSON.parse(JSON.stringify(snapshot));
-    saveData.characters=characters.map(function(c){return c;});
-    saveData.activeCharIdx=activeCharIdx;
-    localStorage.setItem('dnd_autosave',JSON.stringify(saveData));
-  }catch(e){}
-  var name=(snapshot.charName||'charakter').replace(/\s+/g,'_');
-  // Save only the single character snapshot, no characters array
-  var exportSnap=JSON.parse(JSON.stringify(snapshot));
-  delete exportSnap.characters;
-  delete exportSnap.chars;
-  var json=JSON.stringify(exportSnap,null,2);
-  // Universal save: try Blob download (works on Android),
-  // fall back to navigator.share with text (works on iOS standalone),
-  // final fallback: show copyable modal
-  var saved=false;
-  // 1. Try Blob + <a download> — works on Android Chrome (standalone too)
-  try{
-    var blob=new Blob([json],{type:'application/json'});
-    var url=URL.createObjectURL(blob);
-    var a=document.createElement('a');
-    a.href=url; a.download=name+'.json';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setTimeout(function(){ URL.revokeObjectURL(url); },5000);
-    saved=true;
-    toast('✦ Gespeichert');
-  }catch(e){}
-  if(saved) return;
-  // 2. Try navigator.share with text (iOS standalone — shares as plain text, user saves to Notes/Files)
-  if(navigator.share && navigator.canShare && navigator.canShare({text:json})){
-    if(window._sharing) return;
-    window._sharing=true;
-    navigator.share({text:json,title:name+'.json'}).then(function(){
-      toast('✦ Geteilt');
-    }).catch(function(e){
-      if(e.name!=='AbortError') showSaveModal(json);
-    }).finally(function(){ window._sharing=false; });
-    return;
-  }
-  // 3. Modal fallback
-  showSaveModal(json);
-}
-function showSaveModal(json){
-  var el=document.getElementById('saveJsonModal');
-  if(!el){
-    el=document.createElement('div');
-    el.id='saveJsonModal';
-    el.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;padding:20px;';
-    el.innerHTML='<div style="background:#1a1510;border:1px solid rgba(201,168,76,0.3);border-radius:16px;padding:20px;width:100%;max-width:400px;">'
-      +'<div style="color:#e8cc7a;font-size:16px;margin-bottom:10px;">💾 Charakter-Daten kopieren</div>'
-      +'<div style="color:#a08c60;font-size:12px;margin-bottom:10px;">Kopiere diesen Text und speichere ihn in Notizen oder einer Datei.</div>'
-      +'<textarea id="saveJsonArea" readonly style="width:100%;height:160px;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.2);border-radius:10px;color:#a08c60;font-size:10px;padding:10px;resize:none;outline:none;font-family:monospace;word-break:break-all;box-sizing:border-box;"></textarea>'
-      +'<button onclick="copySaveJson()" style="width:100%;margin-top:8px;padding:12px;background:rgba(201,168,76,0.18);border:1px solid rgba(201,168,76,0.3);border-radius:10px;color:#e8cc7a;font-size:14px;">📋 Kopieren</button>'
-      +'<button onclick="document.getElementById(\'saveJsonModal\').remove()" style="width:100%;margin-top:8px;padding:10px;background:none;border:none;color:#a08c60;font-size:14px;">✕ Schließen</button>'
-      +'</div>';
-    document.body.appendChild(el);
-  }
-  document.getElementById('saveJsonArea').value=json;
-}
-function copySaveJson(){
-  var area=document.getElementById('saveJsonArea');
-  if(navigator.clipboard&&navigator.clipboard.writeText){
-    navigator.clipboard.writeText(area.value).then(function(){ toast('📋 Kopiert!'); }).catch(function(){ selectAllText(area); });
-  } else { selectAllText(area); }
-}
-function selectAllText(el){ el.focus(); el.select(); try{ el.setSelectionRange(0,el.value.length); }catch(e){} toast('Text markiert — lange drücken und kopieren'); }
-function fallbackSave(name,json){
-  try{
-    var blob=new Blob([json],{type:'application/json'});
-    var url=URL.createObjectURL(blob);
-    var a=document.createElement('a'); a.href=url; a.download=name+'.json';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    toast('✦ Gespeichert');
-  }catch(e){ showSaveModal(json); }
-}
-function loadChar(){
-  var inp=document.getElementById('fileIn');
-  inp.value='';
-  inp.click();
-}
-function importFile(e){
-  var file=e.target.files[0]; if(!file) return;
-  var r=new FileReader();
-  r.onload=function(ev){ try{ var data=JSON.parse(ev.target.result); characters[activeCharIdx]=gather(); characters.push(data); activeCharIdx=characters.length-1; applyData(data); buildCharSwitcher(); autoSave(); toast('✦ Charakter hinzugefügt'); }catch(err){ toast('⚠ Fehler'); } };
-  r.readAsText(file); e.target.value='';
-}
+
 
 // ── INIT ──
 try {
