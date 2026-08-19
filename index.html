@@ -342,33 +342,70 @@ body.master-mode { padding-top: 58px; }
 <!-- ══════════════════════════════════════ -->
 <!-- LOGIN SCREEN -->
 <!-- ══════════════════════════════════════ -->
-<div id="loginScreen" style="display:flex; position:fixed; top:0;left:0;right:0;bottom:0; z-index:9999; background:#0d0a07; align-items:center; justify-content:center; padding:20px;">
-  <div style="width:100%; max-width:320px;">
+<div id="loginScreen" style="display:block; position:fixed; top:0;left:0;right:0;bottom:0; z-index:9999; perspective:1200px;">
 
-    <div style="text-align:center; margin-bottom:28px;">
-      <div style="font-size:11px; letter-spacing:6px; color:rgba(201,168,76,0.9); text-transform:uppercase; text-shadow:0 0 16px rgba(201,168,76,0.5);">⚔ D&amp;D Deluxe</div>
-      <div style="font-size:10px; letter-spacing:2px; color:rgba(160,140,96,0.5); text-transform:uppercase; margin-top:6px;">Charakterbogen</div>
+  <!-- Die Tür = ganzer Bildschirm, schwingt nach links auf -->
+  <div id="door" style="
+    position:absolute; top:0;left:0;right:0;bottom:0;
+    transform-origin: left center;
+    transform: rotateY(0deg);
+    transition: transform 1.2s cubic-bezier(0.4,0,0.2,1);
+    transform-style: preserve-3d;
+    will-change: transform;
+  ">
+    <!-- Vorderseite der Tür (sichtbar beim Login) -->
+    <div style="
+      position:absolute; top:0;left:0;right:0;bottom:0;
+      background: linear-gradient(160deg, #2a1500 0%, #1a0c00 40%, #0d0600 100%);
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    ">
+      <!-- Holzmaserung-Linien -->
+      <div style="position:absolute;top:0;left:0;right:0;bottom:0;opacity:0.08;background:repeating-linear-gradient(90deg,transparent,transparent 60px,rgba(201,168,76,0.3) 61px);pointer-events:none;"></div>
+      <!-- Goldener Rahmen -->
+      <div style="position:absolute;top:16px;left:16px;right:16px;bottom:16px;border:2px solid rgba(201,168,76,0.25);border-radius:4px;pointer-events:none;"></div>
+      <div style="position:absolute;top:24px;left:24px;right:24px;bottom:24px;border:1px solid rgba(201,168,76,0.12);border-radius:2px;pointer-events:none;"></div>
+
+      <!-- Login-Formular -->
+      <div style="width:100%; max-width:320px; padding:20px; position:relative; z-index:2;">
+
+        <div style="text-align:center; margin-bottom:28px;">
+          <div style="font-size:11px; letter-spacing:6px; color:rgba(201,168,76,0.95); text-transform:uppercase; text-shadow:0 0 20px rgba(201,168,76,0.6);">⚔ D&amp;D Deluxe</div>
+          <div style="font-size:10px; letter-spacing:2px; color:rgba(160,140,96,0.5); text-transform:uppercase; margin-top:6px;">Charakterbogen</div>
+        </div>
+
+        <div style="background:rgba(10,5,0,0.85); border:1px solid rgba(201,168,76,0.3); border-radius:12px; padding:26px 22px; box-shadow:0 8px 40px rgba(0,0,0,0.9),inset 0 1px 0 rgba(201,168,76,0.08);">
+
+          <div style="font-size:10px; letter-spacing:2px; color:rgba(160,140,96,0.8); text-transform:uppercase; margin-bottom:6px;">Email</div>
+          <input id="loginEmail" type="email" placeholder="name@example.com" autocomplete="email"
+            style="display:block;width:100%;box-sizing:border-box;background:rgba(0,0,0,0.6);border:1px solid rgba(201,168,76,0.2);border-radius:8px;padding:11px 13px;color:#f0e6c8;font-size:15px;font-family:Georgia,serif;outline:none;margin-bottom:16px;">
+
+          <div style="font-size:10px; letter-spacing:2px; color:rgba(160,140,96,0.8); text-transform:uppercase; margin-bottom:6px;">Passwort</div>
+          <input id="loginPw" type="password" placeholder="••••••••" autocomplete="current-password"
+            style="display:block;width:100%;box-sizing:border-box;background:rgba(0,0,0,0.6);border:1px solid rgba(201,168,76,0.2);border-radius:8px;padding:11px 13px;color:#f0e6c8;font-size:15px;font-family:Georgia,serif;outline:none;margin-bottom:20px;">
+
+          <button id="loginBtn" onclick="doLogin()"
+            style="display:block;width:100%;padding:13px;background:rgba(201,168,76,0.18);border:1px solid rgba(201,168,76,0.4);border-radius:10px;color:#e8cc7a;font-size:13px;font-family:Georgia,serif;letter-spacing:2px;text-transform:uppercase;cursor:pointer;">
+            Eintreten 🔒
+          </button>
+
+          <div id="loginErr" style="margin-top:14px;font-size:12px;text-align:center;min-height:18px;letter-spacing:0.5px;color:#e05050;"></div>
+          <div id="loginDebug" style="margin-top:4px;font-size:10px;text-align:center;color:rgba(160,140,96,0.35);letter-spacing:0.5px;"></div>
+        </div>
+      </div>
     </div>
 
-    <div style="background:rgba(20,10,2,0.95); border:1px solid rgba(201,168,76,0.35); border-radius:14px; padding:28px 22px; box-shadow:0 8px 40px rgba(0,0,0,0.8);">
-
-      <div style="font-size:10px; letter-spacing:2px; color:rgba(160,140,96,0.8); text-transform:uppercase; margin-bottom:6px;">Email</div>
-      <input id="loginEmail" type="email" placeholder="name@example.com" autocomplete="email"
-        style="display:block; width:100%; box-sizing:border-box; background:rgba(0,0,0,0.5); border:1px solid rgba(201,168,76,0.25); border-radius:8px; padding:11px 13px; color:#f0e6c8; font-size:15px; font-family:Georgia,serif; outline:none; margin-bottom:16px;">
-
-      <div style="font-size:10px; letter-spacing:2px; color:rgba(160,140,96,0.8); text-transform:uppercase; margin-bottom:6px;">Passwort</div>
-      <input id="loginPw" type="password" placeholder="••••••••" autocomplete="current-password"
-        style="display:block; width:100%; box-sizing:border-box; background:rgba(0,0,0,0.5); border:1px solid rgba(201,168,76,0.25); border-radius:8px; padding:11px 13px; color:#f0e6c8; font-size:15px; font-family:Georgia,serif; outline:none; margin-bottom:20px;">
-
-      <button id="loginBtn" onclick="doLogin()"
-        style="display:block; width:100%; padding:13px; background:rgba(201,168,76,0.2); border:1px solid rgba(201,168,76,0.4); border-radius:10px; color:#e8cc7a; font-size:13px; font-family:Georgia,serif; letter-spacing:2px; text-transform:uppercase; cursor:pointer;">
-        Eintreten 🔒
-      </button>
-
-      <div id="loginErr" style="margin-top:14px; font-size:12px; text-align:center; min-height:18px; letter-spacing:0.5px; color:#e05050;"></div>
-      <div id="loginDebug" style="margin-top:4px; font-size:10px; text-align:center; color:rgba(160,140,96,0.4); letter-spacing:0.5px;"></div>
-    </div>
+    <!-- Rückseite der Tür (sieht man beim Aufgehen kurz) -->
+    <div style="
+      position:absolute; top:0;left:0;right:0;bottom:0;
+      background:#0d0a07;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      transform: rotateY(180deg);
+    "></div>
   </div>
+
 </div>
 <!-- ══════════════════════════════════════ -->
 <!-- MASTER BAR (nur für Master sichtbar) -->
@@ -783,8 +820,10 @@ window.onerror = function(msg, src, line) {
 function showLoginScreen() {
   document.getElementById('appRoot').style.display = 'none';
   var s = document.getElementById('loginScreen');
-  s.style.display = 'flex';
-  s.style.opacity = '1';
+  s.style.display = 'block';
+  // Tür zurücksetzen
+  var door = document.getElementById('door');
+  if (door) { door.style.transition = 'none'; door.style.transform = 'rotateY(0deg)'; }
   // Enter-Taste
   var pw = document.getElementById('loginPw');
   var em = document.getElementById('loginEmail');
@@ -793,12 +832,19 @@ function showLoginScreen() {
 }
 function hideLoginScreen() {
   document.getElementById('appRoot').style.display = '';
-  var s = document.getElementById('loginScreen');
-  s.style.transition = 'opacity 0.4s';
-  s.style.opacity = '0';
-  setTimeout(function() { s.style.display = 'none'; }, 400);
+  var door = document.getElementById('door');
+  var screen = document.getElementById('loginScreen');
+  if (door) {
+    door.style.transition = 'transform 1.2s cubic-bezier(0.4,0,0.2,1)';
+    door.style.transform = 'rotateY(-110deg)';
+  }
+  setTimeout(function() {
+    screen.style.display = 'none';
+    // Tür für nächstes Mal zurücksetzen
+    if (door) { door.style.transition = 'none'; door.style.transform = 'rotateY(0deg)'; }
+  }, 1200);
 }
-function animateDoorOpen() { /* entfernt */ }
+function animateDoorOpen() { hideLoginScreen(); }
 
 function doLogin() {
   var email = document.getElementById('loginEmail').value.trim();
