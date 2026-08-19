@@ -2467,11 +2467,36 @@ function doLogin() {
   var email = document.getElementById('loginEmail').value.trim();
   var pw    = document.getElementById('loginPw').value;
   var err   = document.getElementById('loginErr');
+  var btn   = document.querySelector('#loginFormOnDoor button');
   err.textContent = '';
+
+  // Prüfen ob Firebase überhaupt geladen ist
+  if (typeof fbAuth === 'undefined' || !fbAuth) {
+    err.textContent = '⚠️ Firebase nicht geladen – Seite neu laden.';
+    return;
+  }
   if (!email || !pw) { err.textContent = 'Bitte Email und Passwort eingeben.'; return; }
+
+  // Button deaktivieren + Ladetext
+  if (btn) { btn.disabled = true; btn.textContent = 'Wird geladen…'; }
+  err.style.color = '#e8cc7a';
+  err.textContent = 'Verbinde mit Server…';
+
   fbAuth.signInWithEmailAndPassword(email, pw)
-    .then(function() { /* onAuthStateChanged übernimmt */ })
-    .catch(function(e) { err.textContent = 'Fehler: ' + e.message; });
+    .then(function() {
+      err.textContent = '✓ Angemeldet…';
+    })
+    .catch(function(e) {
+      err.style.color = '#e05050';
+      var msg = e.code === 'auth/user-not-found'    ? 'Kein Konto mit dieser Email.' :
+                e.code === 'auth/wrong-password'    ? 'Falsches Passwort.' :
+                e.code === 'auth/invalid-email'     ? 'Ungültige Email-Adresse.' :
+                e.code === 'auth/invalid-credential'? 'Email oder Passwort falsch.' :
+                e.code === 'auth/network-request-failed' ? 'Netzwerkfehler – bitte Verbindung prüfen.' :
+                'Fehler: ' + e.message;
+      err.textContent = msg;
+      if (btn) { btn.disabled = false; btn.innerHTML = 'Eintreten &#128274;'; }
+    });
 }
 
 // ── AUTH STATE ──
