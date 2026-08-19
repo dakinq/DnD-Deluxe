@@ -807,13 +807,17 @@ body.master-mode { padding-top: 58px; }
 <script>
 // ── GLOBALER FEHLER-CATCHER ──
 window.onerror = function(msg, src, line) {
+  // Nur echte Login-Fehler zeigen, keine Init-Fehler beim Seitenstart
+  var screen = document.getElementById('loginScreen');
   var el = document.getElementById('loginErr');
-  if (el && document.getElementById('loginScreen').style.display !== 'none') {
+  if (el && screen && screen.style.display !== 'none' && _loginAttempted) {
     el.style.color = '#e05050';
-    el.textContent = '⚠️ JS-Fehler Zeile ' + line + ': ' + msg;
+    el.textContent = '⚠️ Fehler: ' + msg;
   }
+  console.error('JS Error line ' + line + ':', msg);
   return false;
 };
+var _loginAttempted = false;
 // ── STATE ──
 var hp=23,temp=0,insp=false,curPage=0,slotEdit=false;
 var concSpell='';
@@ -2521,6 +2525,7 @@ function doLogin() {
   err.style.color = '#e05050';
   err.textContent = '';
   if (!email || !pw) { err.textContent = 'Bitte Email und Passwort eingeben.'; return; }
+  _loginAttempted = true;
   if (btn) { btn.disabled = true; btn.textContent = 'Verbinde…'; }
   err.style.color = '#e8cc7a';
   err.textContent = 'Verbinde…';
@@ -2992,11 +2997,14 @@ function importFile(e){
 }
 
 // ── INIT ──
-renderBars();buildSkills();buildAtks();buildSlots();buildSpells();buildItems();buildCoins();buildHD();buildExhaustion();buildGeneralSettings();buildRestSettings();buildFontSizePanel();applyAllFontSizes();updateAllStatDisplays();
-characters=[gather()];
-buildCharSwitcher();
-
-// Login-Screen ist beim Laden bereits sichtbar (display:flex im HTML)
+try {
+  renderBars();buildSkills();buildAtks();buildSlots();buildSpells();buildItems();buildCoins();buildHD();buildExhaustion();buildGeneralSettings();buildRestSettings();buildFontSizePanel();applyAllFontSizes();updateAllStatDisplays();
+  characters=[gather()];
+  buildCharSwitcher();
+} catch(e) {
+  // Initialisierungsfehler sind normal solange appRoot versteckt ist
+  console.warn('Init (vor Login):', e.message);
+}
 
 // Auto-save on any interaction
 document.addEventListener('input',function(){ clearTimeout(window._st); window._st=setTimeout(autoSave,800); });
