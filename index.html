@@ -1009,7 +1009,7 @@ function buildMasterTabs() {
   Object.keys(masterPlayers).forEach(function(uid) {
     var p = masterPlayers[uid];
     var active = masterActiveUid === uid ? 'master-tab-active' : '';
-    html += '<button class="master-tab ' + active + '" onclick="masterLoadPlayer('' + uid + '')">' + escHtml(p.name) + '</button>';
+    html += '<button class="master-tab ' + active + '" onclick="masterLoadPlayer(\'' + uid + '\')">' + escHtml(p.name) + '</button>';
   });
   // Notizen-Tab
   var notesActive = (document.getElementById('masterNotesPanel') && document.getElementById('masterNotesPanel').style.display !== 'none') ? 'master-tab-active' : '';
@@ -1084,7 +1084,7 @@ function renderMasterItemLibrary() {
       html += '<option value="' + uid + '">' + escHtml(masterPlayers[uid].name) + '</option>';
     });
     html += '</select>';
-    html += '<button onclick="giveItemToPlayer('' + item.id + '')" class="save-btn sec" style="padding:4px 10px;font-size:12px;">Geben</button>';
+    html += '<button onclick="giveItemToPlayer(\'' + item.id + '\')" class="save-btn sec" style="padding:4px 10px;font-size:12px;">Geben</button>';
     html += '</div>';
   });
   if (masterItemLibrary.length === 0) html = '<div style="color:var(--text-dim);padding:8px;">Noch keine Gegenstände definiert.</div>';
