@@ -371,7 +371,8 @@ body.master-mode { padding-top: 58px; }
         Eintreten &#128274;
       </button>
 
-      <div id="loginErr" style="color:#e05050; font-size:12px; text-align:center; min-height:18px; margin-top:8px; letter-spacing:0.5px;"></div>
+      <div id="loginErr" style="font-size:12px; text-align:center; min-height:18px; margin-top:8px; letter-spacing:0.5px; color:#e05050;"></div>
+      <div id="loginDebug" style="font-size:10px; text-align:center; color:rgba(160,140,96,0.5); margin-top:4px; letter-spacing:0.5px;"></div>
     </div>
   </div>
 
@@ -778,6 +779,24 @@ body.master-mode { padding-top: 58px; }
 </div>
 
 <script>
+// ── GLOBALER FEHLER-CATCHER ──
+window.onerror = function(msg, src, line, col, err) {
+  var el = document.getElementById('loginErr');
+  if (el) {
+    el.style.color = '#e05050';
+    el.textContent = '⚠️ JS-Fehler Zeile ' + line + ': ' + msg;
+  }
+  console.error('JS ERROR:', msg, src, line);
+  return false;
+};
+window.addEventListener('unhandledrejection', function(e) {
+  var el = document.getElementById('loginErr');
+  if (el) {
+    el.style.color = '#e05050';
+    el.textContent = '⚠️ Promise-Fehler: ' + (e.reason && e.reason.message ? e.reason.message : e.reason);
+  }
+  console.error('Unhandled rejection:', e.reason);
+});
 // ── STATE ──
 var hp=23,temp=0,insp=false,curPage=0,slotEdit=false;
 var concSpell='';
@@ -2436,6 +2455,11 @@ var firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 var fbAuth = firebase.auth();
 var fbDb   = firebase.firestore();
+// Firebase-Status anzeigen
+(function() {
+  var d = document.getElementById('loginDebug');
+  if (d) d.textContent = fbAuth ? '✓ Firebase geladen' : '✗ Firebase fehlt';
+})();
 var fbUser = null;
 var fbRole = null; // "master" oder "player"
 var fbSaveTimer = null;
