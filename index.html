@@ -351,14 +351,14 @@ body.master-mode { padding-top: 58px; }
     background-repeat:no-repeat;
     opacity:0; transition:opacity 0.6s ease; pointer-events:none; z-index:1;"></div>
 
-  <!-- Linke Türhälfte: linke 50% des Bildes -->
+  <!-- Linke Türhälfte -->
   <div id="doorLeft" style="position:absolute;top:0;left:0;width:50%;height:100%;z-index:3;overflow:hidden;">
-    <img src="door.jpeg" style="position:absolute;top:50%;left:0;transform:translateY(-50%);width:200%;height:auto;max-height:none;display:block;">
+    <img src="door.jpeg" style="position:absolute;top:0;left:50%;transform:translateX(-50%);height:100%;width:auto;display:block;">
   </div>
 
-  <!-- Rechte Türhälfte: rechte 50% des Bildes -->
+  <!-- Rechte Türhälfte -->
   <div id="doorRight" style="position:absolute;top:0;right:0;width:50%;height:100%;z-index:3;overflow:hidden;">
-    <img src="door.jpeg" style="position:absolute;top:50%;left:-100%;transform:translateY(-50%);width:200%;height:auto;max-height:none;display:block;">
+    <img src="door.jpeg" style="position:absolute;top:0;right:50%;transform:translateX(50%);height:100%;width:auto;display:block;">
   </div>
 
   <!-- Login-Formular -->
@@ -2716,9 +2716,9 @@ function buildCardHTML(uid) {
   var deathFail = parseInt(d.deathSaveFail) || 0;
 
   var succDots = '';
-  for (var i = 0; i < 3; i++) succDots += '<span style="display:inline-block;width:12px;height:12px;border-radius:50%;margin:0 2px;background:' + (i < deathSucc ? '#5dba7d' : 'rgba(255,255,255,0.1)') + ';border:1px solid rgba(93,186,125,0.4);"></span>';
+  for (var i = 0; i < 3; i++) succDots += '<span style="display:inline-block;width:22px;height:22px;border-radius:50%;margin:0 3px;background:' + (i < deathSucc ? '#5dba7d' : 'rgba(255,255,255,0.1)') + ';border:2px solid rgba(93,186,125,0.5);"></span>';
   var failDots = '';
-  for (var j = 0; j < 3; j++) failDots += '<span style="display:inline-block;width:12px;height:12px;border-radius:50%;margin:0 2px;background:' + (j < deathFail ? '#e05050' : 'rgba(255,255,255,0.1)') + ';border:1px solid rgba(224,80,80,0.4);"></span>';
+  for (var j = 0; j < 3; j++) failDots += '<span style="display:inline-block;width:22px;height:22px;border-radius:50%;margin:0 3px;background:' + (j < deathFail ? '#e05050' : 'rgba(255,255,255,0.1)') + ';border:2px solid rgba(224,80,80,0.5);"></span>';
 
   return '<div class="card">' +
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">' +
@@ -2739,8 +2739,8 @@ function buildCardHTML(uid) {
     '</div>' +
     '<div style="display:flex;gap:10px;margin-bottom:10px;">' +
       '<div style="flex:1;background:rgba(255,255,255,0.04);border-radius:8px;padding:8px;text-align:center;">' +
-        '<div style="font-size:10px;color:var(--text-dim);letter-spacing:1px;margin-bottom:3px;">TEMPO</div>' +
-        '<div style="font-size:18px;color:var(--text-main);">' + escHtml(String(speed)) + '<span style="font-size:10px;color:var(--text-dim);"> ft</span></div>' +
+        '<div style="font-size:10px;color:var(--text-dim);letter-spacing:1px;margin-bottom:3px;">TEMP. LEBEN</div>' +
+        '<div style="font-size:18px;color:' + (tmpHp > 0 ? '#99aaff' : 'var(--text-dim)') + ';">' + (tmpHp > 0 ? '+' + tmpHp : '—') + '</div>' +
       '</div>' +
       '<div style="flex:1;background:rgba(255,255,255,0.04);border-radius:8px;padding:8px;text-align:center;">' +
         '<div style="font-size:10px;color:var(--text-dim);letter-spacing:1px;margin-bottom:3px;">ERSCHÖPFUNG</div>' +
@@ -2757,23 +2757,73 @@ function buildCardHTML(uid) {
   '</div>';
 }
 
-// ── VOLLANSICHT ──
+// ── VOLLANSICHT (echte Spieler-View, read-only) ──
+var masterFullViewUid = null;
+
 function openMasterFullView(uid) {
   var p = masterPlayers[uid];
   if (!p) return;
-  document.getElementById('masterFullViewTitle').textContent = p.name;
-  document.getElementById('masterFullViewContent').innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:40px;letter-spacing:1px;">Lädt…</div>';
-  document.getElementById('masterFullView').style.display = 'flex';
+  masterFullViewUid = uid;
+
   fbDb.collection('characters').doc(uid).get().then(function(doc) {
-    if (!doc.exists) { document.getElementById('masterFullViewContent').innerHTML = '<div style="color:#e05050;padding:20px;">Keine Daten.</div>'; return; }
+    if (!doc.exists) { alert('Keine Daten für diesen Spieler.'); return; }
     var d = doc.data();
     var char = (d.chars && d.chars[0]) ? d.chars[0] : d;
-    renderReadOnlySheet(char);
+
+    // Spieler-Daten in die UI laden
+    applyData(char);
+    buildCharSwitcher();
+
+    // App-View anzeigen, Master-Page verstecken
+    document.getElementById('masterPage').style.display = 'none';
+    document.getElementById('appRoot').style.display = 'block';
+
+    // Alle Inputs & Buttons deaktivieren
+    document.getElementById('appRoot').querySelectorAll('input, textarea, button, select').forEach(function(el) {
+      el.setAttribute('disabled', 'true');
+      el.style.pointerEvents = 'none';
+      el.style.opacity = '0.85';
+    });
+
+    // Zurück-Button einblenden
+    var backBtn = document.getElementById('masterBackBtn');
+    if (!backBtn) {
+      backBtn = document.createElement('div');
+      backBtn.id = 'masterBackBtn';
+      backBtn.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:rgba(10,6,2,0.95);border-bottom:1px solid rgba(201,168,76,0.3);backdrop-filter:blur(8px);';
+      backBtn.innerHTML = '<span style="color:var(--gold);font-size:12px;letter-spacing:1.5px;text-transform:uppercase;">👁 ' + escHtml(p.name) + ' · Ansicht</span>' +
+        '<button onclick="closeMasterFullView()" style="background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.4);border-radius:8px;color:#e8cc7a;font-size:12px;padding:7px 16px;letter-spacing:1px;font-family:Georgia,serif;cursor:pointer;">← Master</button>';
+      document.body.appendChild(backBtn);
+    } else {
+      backBtn.style.display = 'flex';
+      backBtn.querySelector('span').textContent = '👁 ' + p.name + ' · Ansicht';
+    }
+
+    // Platz für den Zurück-Banner
+    document.getElementById('outer').style.paddingTop = '48px';
   });
 }
 
 function closeMasterFullView() {
-  document.getElementById('masterFullView').style.display = 'none';
+  // Inputs wieder aktivieren
+  document.getElementById('appRoot').querySelectorAll('input, textarea, button, select').forEach(function(el) {
+    el.removeAttribute('disabled');
+    el.style.pointerEvents = '';
+    el.style.opacity = '';
+  });
+
+  // Zurück-Button verstecken
+  var backBtn = document.getElementById('masterBackBtn');
+  if (backBtn) backBtn.style.display = 'none';
+
+  // Padding zurücksetzen
+  document.getElementById('outer').style.paddingTop = '';
+
+  // Master-View wieder anzeigen
+  document.getElementById('appRoot').style.display = 'none';
+  document.getElementById('masterPage').style.display = 'flex';
+
+  masterFullViewUid = null;
 }
 
 function renderReadOnlySheet(d) {
