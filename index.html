@@ -351,14 +351,14 @@ body.master-mode { padding-top: 58px; }
     background-repeat:no-repeat;
     opacity:0; transition:opacity 0.6s ease; pointer-events:none; z-index:1;"></div>
 
-  <!-- Linke Türhälfte -->
+  <!-- Linke Türhälfte: zeigt linke Hälfte des Bildes -->
   <div id="doorLeft" style="position:absolute;top:0;left:0;width:50%;height:100%;z-index:3;overflow:hidden;">
-    <img src="door.jpeg" style="position:absolute;top:0;left:50%;transform:translateX(-50%);height:100%;width:auto;display:block;">
+    <img src="door.jpeg" style="position:absolute;top:0;left:0;height:100%;width:auto;display:block;">
   </div>
 
-  <!-- Rechte Türhälfte -->
+  <!-- Rechte Türhälfte: zeigt rechte Hälfte des Bildes -->
   <div id="doorRight" style="position:absolute;top:0;right:0;width:50%;height:100%;z-index:3;overflow:hidden;">
-    <img src="door.jpeg" style="position:absolute;top:0;right:50%;transform:translateX(50%);height:100%;width:auto;display:block;">
+    <img src="door.jpeg" style="position:absolute;top:0;right:0;height:100%;width:auto;display:block;">
   </div>
 
   <!-- Login-Formular -->
@@ -2715,17 +2715,13 @@ function buildCardHTML(uid) {
   var deathSucc = parseInt(d.deathSaveSucc) || 0;
   var deathFail = parseInt(d.deathSaveFail) || 0;
 
+  var succDots = '';
+  for (var i = 0; i < 3; i++) succDots += '<span style="display:inline-block;width:22px;height:22px;border-radius:50%;margin:0 3px;background:' + (i < deathSucc ? '#5dba7d' : 'rgba(255,255,255,0.1)') + ';border:2px solid rgba(93,186,125,0.5);"></span>';
+  var failDots = '';
+  for (var j = 0; j < 3; j++) failDots += '<span style="display:inline-block;width:22px;height:22px;border-radius:50%;margin:0 3px;background:' + (j < deathFail ? '#e05050' : 'rgba(255,255,255,0.1)') + ';border:2px solid rgba(224,80,80,0.5);"></span>';
   var exhPips = '';
   for (var e = 1; e <= 6; e++) {
     exhPips += '<span class="exh-pip' + (exh >= e ? ' active' : '') + '" style="pointer-events:none;">' + e + '</span>';
-  }
-  var succTiles = '';
-  for (var s = 0; s < 3; s++) {
-    succTiles += '<span class="d-tile' + (s < deathSucc ? ' s-active' : '') + '" style="display:block;flex:1;height:26px;border-radius:6px;pointer-events:none;"></span>';
-  }
-  var failTiles = '';
-  for (var f = 0; f < 3; f++) {
-    failTiles += '<span class="d-tile' + (f < deathFail ? ' f-active' : '') + '" style="display:block;flex:1;height:26px;border-radius:6px;pointer-events:none;"></span>';
   }
 
   return '<div class="card">' +
@@ -2750,11 +2746,13 @@ function buildCardHTML(uid) {
       '</div>' +
       '<div class="bar"><div class="fill" style="width:' + tmpPct + '%;background:#6677cc;"></div></div>' +
     '</div>' +
-    '<div class="card-title" style="margin-top:4px;margin-bottom:6px;">☠ Todeswürfe</div>' +
-    '<div class="death-label">✓ Erfolge</div>' +
-    '<div class="death-row">' + succTiles + '</div>' +
-    '<div class="death-label">✗ Misserfolge</div>' +
-    '<div class="death-row" style="margin-bottom:14px;">' + failTiles + '</div>' +
+    '<div style="background:rgba(255,255,255,0.03);border-radius:8px;padding:10px;margin-bottom:14px;">' +
+      '<div style="font-size:10px;color:var(--text-dim);letter-spacing:1px;margin-bottom:10px;">☠ TODESWÜRFE</div>' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;padding:0 4px;">' +
+        '<div style="display:flex;align-items:center;gap:6px;"><span style="font-size:14px;color:#5dba7d;">✓</span>' + succDots + '</div>' +
+        '<div style="display:flex;align-items:center;gap:6px;"><span style="font-size:14px;color:#e05050;">✗</span>' + failDots + '</div>' +
+      '</div>' +
+    '</div>' +
     '<div class="card-title" style="margin-bottom:8px;">Erschöpfung</div>' +
     '<div class="exh-row">' + exhPips + '</div>' +
     '<div class="exh-label">' + (exhLabels[exh] || '') + '</div>' +
