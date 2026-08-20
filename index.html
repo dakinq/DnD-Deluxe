@@ -396,27 +396,47 @@ body.master-mode { padding-top: 58px; }
   </div>
 
 </div>
-<div id="masterBar" style="display:none; position:fixed; top:0; left:0; right:0; z-index:500; background:var(--card-bg); border-bottom:2px solid var(--gold); padding:8px 12px; flex-direction:column; gap:6px;">
-  <div style="display:flex; align-items:center; gap:10px;">
-    <span style="color:var(--gold); font-weight:700; font-size:13px; letter-spacing:1px;">👑 MASTER</span>
-    <div id="masterTabsInner" style="display:flex; gap:6px; flex-wrap:wrap; flex:1;"></div>
+<!-- MASTER PAGE -->
+<div id="masterPage" style="display:none; position:fixed; top:0;left:0;right:0;bottom:0; z-index:400; background:var(--bg); flex-direction:column; overflow:hidden;">
 
+  <!-- Header -->
+  <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 16px; background:var(--card-bg); border-bottom:1px solid rgba(201,168,76,0.2); flex-shrink:0;">
+    <span style="color:var(--gold); font-size:13px; letter-spacing:2px; text-transform:uppercase; font-weight:700;">👑 Dungeon Master</span>
+    <!-- Burger Menü -->
+    <button onclick="toggleMasterMenu()" style="background:none;border:none;color:var(--text-dim);font-size:22px;cursor:pointer;padding:4px 8px;line-height:1;">☰</button>
   </div>
-  <!-- Master Notizen Panel -->
-  <div id="masterNotesPanel" style="display:none; background:var(--bg); border:1px solid var(--card-border); border-radius:8px; padding:12px; margin-top:4px;">
-    <div style="color:var(--text-dim); font-size:12px; margin-bottom:6px;">📝 Notizen zu diesem Spieler (nur du siehst das):</div>
-    <textarea id="masterNoteText" rows="4" placeholder="Notizen..." style="width:100%; box-sizing:border-box; background:var(--card-bg); border:1px solid var(--card-border); border-radius:6px; color:var(--text-main); padding:8px; font-size:13px; resize:vertical;"></textarea>
-    <button onclick="saveMasterNote()" class="save-btn sec" style="margin-top:6px; padding:6px 16px; font-size:13px;">Speichern</button>
+
+  <!-- Burger Dropdown -->
+  <div id="masterMenu" style="display:none; position:absolute; top:48px; right:12px; z-index:600; background:var(--card-bg); border:1px solid rgba(201,168,76,0.25); border-radius:10px; padding:8px; min-width:160px; box-shadow:0 4px 20px rgba(0,0,0,0.6);">
+    <button onclick="doLogout()" style="display:block;width:100%;padding:10px 14px;background:rgba(180,60,60,0.15);border:1px solid rgba(180,60,60,0.3);border-radius:8px;color:#e07070;font-size:13px;font-family:Georgia,serif;letter-spacing:1px;cursor:pointer;text-align:left;">
+      Abmelden
+    </button>
   </div>
-  <!-- Master Gegenstände Panel -->
-  <div id="masterItemsPanel" style="display:none; background:var(--bg); border:1px solid var(--card-border); border-radius:8px; padding:12px; margin-top:4px;">
-    <div style="color:var(--gold); font-size:13px; font-weight:600; margin-bottom:8px;">🎁 Gegenstände</div>
-    <div style="display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap;">
-      <input id="newItemName" placeholder="Name" style="background:var(--card-bg); border:1px solid var(--card-border); border-radius:6px; color:var(--text-main); padding:6px 10px; font-size:13px; flex:1; min-width:120px;">
-      <input id="newItemDesc" placeholder="Beschreibung (optional)" style="background:var(--card-bg); border:1px solid var(--card-border); border-radius:6px; color:var(--text-main); padding:6px 10px; font-size:13px; flex:2; min-width:160px;">
-      <button onclick="addMasterItem()" class="save-btn" style="padding:6px 14px; font-size:13px;">➕ Erstellen</button>
+
+  <!-- Spieler-Pillen (horizontal scroll) -->
+  <div style="flex-shrink:0; padding:12px 16px 0; border-bottom:1px solid rgba(201,168,76,0.1);">
+    <div id="masterPills" style="display:flex; gap:8px; overflow-x:auto; padding-bottom:12px; -webkit-overflow-scrolling:touch; scrollbar-width:none;">
     </div>
-    <div id="masterItemList"></div>
+  </div>
+
+  <!-- Dashboard (scrollbar) -->
+  <div id="masterDashboard" style="flex:1; overflow-y:auto; padding:14px 16px; -webkit-overflow-scrolling:touch;">
+    <div id="masterCards" style="display:flex; flex-direction:column; gap:12px;">
+      <div style="color:var(--text-dim); font-size:13px; text-align:center; padding:30px 0; letter-spacing:1px;">
+        Spieler antippen um Karte anzuzeigen
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MASTER VOLLANSICHT -->
+<div id="masterFullView" style="display:none; position:fixed; top:0;left:0;right:0;bottom:0; z-index:450; background:var(--bg); flex-direction:column; overflow:hidden;">
+  <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 16px; background:var(--card-bg); border-bottom:1px solid rgba(201,168,76,0.2); flex-shrink:0;">
+    <span id="masterFullViewTitle" style="color:var(--gold); font-size:13px; letter-spacing:1px;"></span>
+    <button onclick="closeMasterFullView()" style="background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.3);border-radius:8px;color:#e8cc7a;font-size:12px;padding:6px 14px;cursor:pointer;letter-spacing:1px;">✕ Zurück</button>
+  </div>
+  <div id="masterFullViewContent" style="flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:14px;">
+    <!-- Hier wird der Charakter-Bogen read-only geladen -->
   </div>
 </div>
 
@@ -2589,207 +2609,250 @@ function initPlayerMode() {
 // ════════════════════════════════════════════════
 // ── MASTER MODE ──
 // ════════════════════════════════════════════════
-var masterPlayers = {}; // uid → {name, data}
-var masterActiveUid = null;
-var masterEditingPlayer = false; // Master bearbeitet Spieler-Bogen
+var masterPlayers = {};       // uid → { name, uid, liveData }
+var masterSelectedUids = [];  // Reihenfolge der getippten Pillen
+var masterMenuOpen = false;
+var masterLiveListeners = {}; // uid → unsubscribe fn
 
 function initMasterMode() {
-  // Master-UI einblenden
-  document.getElementById('masterBar').style.display = 'flex';
+  document.getElementById('masterPage').style.display = 'flex';
+  document.getElementById('appRoot').style.display = 'none';
 
-  // Alle Spieler-Dokumente laden (Echtzeit)
-  var unsub = fbDb.collection('characters').onSnapshot(function(snap) {
+  // Einmalig alle Spieler laden
+  fbDb.collection('characters').get().then(function(snap) {
     snap.forEach(function(doc) {
       var uid = doc.id;
-      if (uid === fbUser.uid) return; // Master überspringen
+      if (uid === fbUser.uid) return;
       var d = doc.data();
-      var name = d.chars && d.chars[0] ? (d.chars[0].charName || uid) : (d.charName || uid);
-      masterPlayers[uid] = { name: name, data: d, uid: uid };
+      var name = (d.chars && d.chars[0] && d.chars[0].charName) ? d.chars[0].charName : uid;
+      masterPlayers[uid] = { uid: uid, name: name, liveData: null };
     });
-    buildMasterTabs();
-    // Eigenen Bogen des Masters laden falls noch keiner aktiv
-    if (!masterEditingPlayer) {
-      loadMasterOwnChar();
-    }
-  });
-  fbListeners.push(unsub);
-}
-
-function loadMasterOwnChar() {
-  masterActiveUid = fbUser.uid;
-  masterEditingPlayer = false;
-  fbDb.collection('characters').doc(fbUser.uid).get().then(function(doc) {
-    if (doc.exists) {
-      var d = doc.data();
-      if (d.chars && d.chars.length > 0) {
-        characters = d.chars;
-        applyData(characters[0]);
-        characters.forEach(function(c, i) {
-          _fbLastSaved[i] = JSON.parse(JSON.stringify(c));
-        });
-      } else {
-        applyData(d);
-        _fbLastSaved[0] = JSON.parse(JSON.stringify(d));
-      }
-      buildCharSwitcher();
-    } else {
-      localLoad();
-    }
+    buildMasterPills();
   });
 }
 
-function masterLoadPlayer(uid) {
-  masterActiveUid = uid;
-  masterEditingPlayer = true;
-  _fbLastSaved = {}; // Reset Diff-Basis für neuen Spieler
-  var pd = masterPlayers[uid];
-  if (!pd) return;
-  var d = pd.data;
-  if (d.chars && d.chars.length > 0) {
-    characters = d.chars;
-    applyData(characters[0]);
-    characters.forEach(function(c, i) {
-      _fbLastSaved[i] = JSON.parse(JSON.stringify(c));
-    });
-  } else {
-    applyData(d);
-    _fbLastSaved[0] = JSON.parse(JSON.stringify(d));
-  }
-  buildCharSwitcher();
-  buildMasterTabs();
-  toast('✏️ Bearbeite: ' + pd.name);
-}
-
-function buildMasterTabs() {
-  var bar = document.getElementById('masterTabsInner');
-  if (!bar) return;
+// ── PILLEN ──
+function buildMasterPills() {
+  var el = document.getElementById('masterPills');
+  if (!el) return;
   var html = '';
   Object.keys(masterPlayers).forEach(function(uid) {
     var p = masterPlayers[uid];
-    var active = masterActiveUid === uid ? 'master-tab-active' : '';
-    html += '<button class="master-tab ' + active + '" onclick="masterLoadPlayer(\'\" + uid + \"\')">' + escHtml(p.name) + '</button>';
+    var selected = masterSelectedUids.indexOf(uid) !== -1;
+    html += '<button ' +
+      'onclick="toggleMasterCard(\'' + uid + '\')" ' +
+      'oncontextmenu="event.preventDefault();openMasterFullView(\'' + uid + '\')" ' +
+      'style="flex-shrink:0;padding:8px 18px;border-radius:20px;font-size:13px;' +
+      'font-family:Georgia,serif;letter-spacing:1px;cursor:pointer;white-space:nowrap;transition:all 0.2s;' +
+      (selected
+        ? 'background:rgba(201,168,76,0.25);border:1px solid rgba(201,168,76,0.7);color:#e8cc7a;'
+        : 'background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.2);color:var(--text-dim);') +
+      '">' + escHtml(p.name) + '</button>';
   });
-  // Notizen-Tab
-  var notesActive = (document.getElementById('masterNotesPanel') && document.getElementById('masterNotesPanel').style.display !== 'none') ? 'master-tab-active' : '';
-  html += '<button class="master-tab ' + notesActive + '" onclick="toggleMasterNotes()">📝 Notizen</button>';
-  // Gegenstände-Tab
-  var itemsActive = (document.getElementById('masterItemsPanel') && document.getElementById('masterItemsPanel').style.display !== 'none') ? 'master-tab-active' : '';
-  html += '<button class="master-tab ' + itemsActive + '" onclick="toggleMasterItems()">🎁 Gegenstände</button>';
-  bar.innerHTML = html;
+  if (!html) html = '<div style="color:var(--text-dim);font-size:12px;padding:4px;">Keine Spieler gefunden</div>';
+  el.innerHTML = html;
+
+  // Langen Tap für Vollansicht
+  el.querySelectorAll('button').forEach(function(btn, i) {
+    var uid = Object.keys(masterPlayers)[i];
+    var timer;
+    btn.addEventListener('touchstart', function() { timer = setTimeout(function() { openMasterFullView(uid); }, 600); }, {passive:true});
+    btn.addEventListener('touchend', function() { clearTimeout(timer); }, {passive:true});
+    btn.addEventListener('touchmove', function() { clearTimeout(timer); }, {passive:true});
+  });
 }
 
-// ── MASTER NOTIZEN ──
-function toggleMasterNotes() {
-  var p = document.getElementById('masterNotesPanel');
-  if (!p) return;
-  var visible = p.style.display !== 'none';
-  p.style.display = visible ? 'none' : 'block';
-  if (!visible && masterActiveUid && masterPlayers[masterActiveUid]) {
-    loadMasterNote(masterActiveUid);
+// ── KARTEN TOGGLE ──
+function toggleMasterCard(uid) {
+  var idx = masterSelectedUids.indexOf(uid);
+  if (idx !== -1) {
+    masterSelectedUids.splice(idx, 1);
+    if (masterLiveListeners[uid]) { masterLiveListeners[uid](); delete masterLiveListeners[uid]; }
+  } else {
+    masterSelectedUids.push(uid);
+    startLiveListener(uid);
   }
-  buildMasterTabs();
+  buildMasterPills();
+  renderMasterDashboard();
 }
 
-function loadMasterNote(uid) {
-  fbDb.collection('masterNotes').doc(uid).get().then(function(doc) {
-    var ta = document.getElementById('masterNoteText');
-    if (ta) ta.value = doc.exists ? (doc.data().text || '') : '';
+function startLiveListener(uid) {
+  if (masterLiveListeners[uid]) return;
+  var unsub = fbDb.collection('characters').doc(uid).onSnapshot(function(doc) {
+    if (!doc.exists) return;
+    var d = doc.data();
+    var char = (d.chars && d.chars[0]) ? d.chars[0] : d;
+    if (char.charName) masterPlayers[uid].name = char.charName;
+    masterPlayers[uid].liveData = char;
+    renderMasterCard(uid);
+    buildMasterPills();
   });
+  masterLiveListeners[uid] = unsub;
+  fbListeners.push(unsub);
 }
 
-function saveMasterNote() {
-  if (!masterActiveUid || !masterPlayers[masterActiveUid]) return;
-  var ta = document.getElementById('masterNoteText');
-  if (!ta) return;
-  fbDb.collection('masterNotes').doc(masterActiveUid).set({
-    text: ta.value,
-    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-  }).then(function() { toast('📝 Notiz gespeichert'); });
-}
-
-// ── MASTER GEGENSTÄNDE ──
-var masterItemLibrary = [];
-
-function toggleMasterItems() {
-  var p = document.getElementById('masterItemsPanel');
-  if (!p) return;
-  var visible = p.style.display !== 'none';
-  p.style.display = visible ? 'none' : 'block';
-  if (!visible) loadMasterItemLibrary();
-  buildMasterTabs();
-}
-
-function loadMasterItemLibrary() {
-  fbDb.collection('items').get().then(function(snap) {
-    masterItemLibrary = [];
-    snap.forEach(function(doc) {
-      masterItemLibrary.push(Object.assign({ id: doc.id }, doc.data()));
-    });
-    renderMasterItemLibrary();
-  });
-}
-
-function renderMasterItemLibrary() {
-  var el = document.getElementById('masterItemList');
-  if (!el) return;
+// ── DASHBOARD ──
+function renderMasterDashboard() {
+  var container = document.getElementById('masterCards');
+  if (!container) return;
+  if (masterSelectedUids.length === 0) {
+    container.innerHTML = '<div style="color:var(--text-dim);font-size:13px;text-align:center;padding:30px 0;letter-spacing:1px;">Spieler antippen um Karte anzuzeigen</div>';
+    return;
+  }
   var html = '';
-  masterItemLibrary.forEach(function(item) {
-    html += '<div class="master-item-row">';
-    html += '<span>' + escHtml(item.name) + '</span>';
-    html += '<select id="itemTarget_' + item.id + '" class="master-item-target">';
-    html += '<option value="">-- Spieler --</option>';
-    Object.keys(masterPlayers).forEach(function(uid) {
-      html += '<option value="' + uid + '">' + escHtml(masterPlayers[uid].name) + '</option>';
-    });
-    html += '</select>';
-    html += '<button onclick="giveItemToPlayer(\'\" + item.id + \"\')" class="save-btn sec" style="padding:4px 10px;font-size:12px;">Geben</button>';
-    html += '</div>';
+  masterSelectedUids.forEach(function(uid) {
+    html += '<div id="masterCard_' + uid + '">' + buildCardHTML(uid) + '</div>';
   });
-  if (masterItemLibrary.length === 0) html = '<div style="color:var(--text-dim);padding:8px;">Noch keine Gegenstände definiert.</div>';
+  container.innerHTML = html;
+}
+
+function renderMasterCard(uid) {
+  var el = document.getElementById('masterCard_' + uid);
+  if (el) el.innerHTML = buildCardHTML(uid);
+}
+
+function buildCardHTML(uid) {
+  var p = masterPlayers[uid];
+  var d = p.liveData;
+
+  if (!d) return '<div class="card" style="text-align:center;color:var(--text-dim);padding:20px;"><div style="letter-spacing:1px;">' + escHtml(p.name) + '</div><div style="font-size:11px;margin-top:4px;">Lädt…</div></div>';
+
+  var hp     = parseInt(d.hp)     || 0;
+  var maxHp  = parseInt(d.maxHp)  || 1;
+  var tmpHp  = parseInt(d.tempHp) || 0;
+  var speed  = d.speed || '—';
+  var exh    = parseInt(d.exhaustion) || 0;
+  var exhLabels = ['—','Stufe I','Stufe II','Stufe III','Stufe IV','Stufe V','Tod'];
+  var hpPct  = Math.max(0, Math.min(100, Math.round(hp / maxHp * 100)));
+  var hpColor = hpPct > 60 ? '#5dba7d' : hpPct > 30 ? '#e8cc7a' : '#e05050';
+  var deathSucc = parseInt(d.deathSaveSucc) || 0;
+  var deathFail = parseInt(d.deathSaveFail) || 0;
+
+  var succDots = '';
+  for (var i = 0; i < 3; i++) succDots += '<span style="display:inline-block;width:12px;height:12px;border-radius:50%;margin:0 2px;background:' + (i < deathSucc ? '#5dba7d' : 'rgba(255,255,255,0.1)') + ';border:1px solid rgba(93,186,125,0.4);"></span>';
+  var failDots = '';
+  for (var j = 0; j < 3; j++) failDots += '<span style="display:inline-block;width:12px;height:12px;border-radius:50%;margin:0 2px;background:' + (j < deathFail ? '#e05050' : 'rgba(255,255,255,0.1)') + ';border:1px solid rgba(224,80,80,0.4);"></span>';
+
+  return '<div class="card">' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">' +
+      '<div>' +
+        '<div style="font-size:15px;color:var(--gold);letter-spacing:1px;">' + escHtml(p.name) + '</div>' +
+        '<div style="font-size:11px;color:var(--text-dim);letter-spacing:1px;margin-top:2px;">' + escHtml(d.charClass || '') + (d.charLevel ? ' · Lvl ' + d.charLevel : '') + '</div>' +
+      '</div>' +
+      '<button onclick="openMasterFullView(\'' + uid + '\')" style="background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.25);border-radius:8px;color:var(--text-dim);font-size:11px;padding:5px 10px;cursor:pointer;letter-spacing:1px;">Bogen →</button>' +
+    '</div>' +
+    '<div style="margin-bottom:10px;">' +
+      '<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim);margin-bottom:4px;letter-spacing:1px;">' +
+        '<span>TREFFERPUNKTE</span>' +
+        '<span style="color:' + hpColor + ';font-size:14px;">' + hp + '<span style="color:var(--text-dim);font-size:11px;"> / ' + maxHp + '</span>' + (tmpHp ? ' <span style="color:#99aaff;font-size:11px;">(+' + tmpHp + ')</span>' : '') + '</span>' +
+      '</div>' +
+      '<div style="height:8px;background:rgba(255,255,255,0.08);border-radius:4px;overflow:hidden;">' +
+        '<div style="height:100%;width:' + hpPct + '%;background:' + hpColor + ';border-radius:4px;transition:width 0.5s;"></div>' +
+      '</div>' +
+    '</div>' +
+    '<div style="display:flex;gap:10px;margin-bottom:10px;">' +
+      '<div style="flex:1;background:rgba(255,255,255,0.04);border-radius:8px;padding:8px;text-align:center;">' +
+        '<div style="font-size:10px;color:var(--text-dim);letter-spacing:1px;margin-bottom:3px;">TEMPO</div>' +
+        '<div style="font-size:18px;color:var(--text-main);">' + escHtml(String(speed)) + '<span style="font-size:10px;color:var(--text-dim);"> ft</span></div>' +
+      '</div>' +
+      '<div style="flex:1;background:rgba(255,255,255,0.04);border-radius:8px;padding:8px;text-align:center;">' +
+        '<div style="font-size:10px;color:var(--text-dim);letter-spacing:1px;margin-bottom:3px;">ERSCHÖPFUNG</div>' +
+        '<div style="font-size:13px;color:' + (exh > 0 ? '#e05050' : 'var(--text-dim)') + ';">' + (exhLabels[exh] || '—') + '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div style="background:rgba(255,255,255,0.03);border-radius:8px;padding:8px;">' +
+      '<div style="font-size:10px;color:var(--text-dim);letter-spacing:1px;margin-bottom:6px;">TODESRETTUNGSWÜRFE</div>' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;">' +
+        '<div style="display:flex;align-items:center;gap:4px;"><span style="font-size:11px;color:#5dba7d;margin-right:2px;">✓</span>' + succDots + '</div>' +
+        '<div style="display:flex;align-items:center;gap:4px;"><span style="font-size:11px;color:#e05050;margin-right:2px;">✗</span>' + failDots + '</div>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+// ── VOLLANSICHT ──
+function openMasterFullView(uid) {
+  var p = masterPlayers[uid];
+  if (!p) return;
+  document.getElementById('masterFullViewTitle').textContent = p.name;
+  document.getElementById('masterFullViewContent').innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:40px;letter-spacing:1px;">Lädt…</div>';
+  document.getElementById('masterFullView').style.display = 'flex';
+  fbDb.collection('characters').doc(uid).get().then(function(doc) {
+    if (!doc.exists) { document.getElementById('masterFullViewContent').innerHTML = '<div style="color:#e05050;padding:20px;">Keine Daten.</div>'; return; }
+    var d = doc.data();
+    var char = (d.chars && d.chars[0]) ? d.chars[0] : d;
+    renderReadOnlySheet(char);
+  });
+}
+
+function closeMasterFullView() {
+  document.getElementById('masterFullView').style.display = 'none';
+}
+
+function renderReadOnlySheet(d) {
+  var el = document.getElementById('masterFullViewContent');
+  var stats = ['STR','DEX','CON','INT','WIS','CHA'];
+  var statKeys = ['str','dex','con','int','wis','cha'];
+  function mod(v) { var m = Math.floor(((parseInt(v)||10)-10)/2); return (m>=0?'+':'')+m; }
+  var html = '';
+
+  html += '<div class="card"><div style="font-size:18px;color:var(--gold);margin-bottom:4px;">' + escHtml(d.charName||'—') + '</div>';
+  html += '<div style="font-size:12px;color:var(--text-dim);letter-spacing:1px;">' + escHtml((d.charRace||'') + (d.charClass ? ' · ' + d.charClass : '') + (d.charLevel ? ' Lvl ' + d.charLevel : '')) + '</div></div>';
+
+  html += '<div class="card"><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center;">';
+  [{l:'HP',v:(d.hp||0)+' / '+(d.maxHp||0)},{l:'RK',v:d.ac||'—'},{l:'INIT',v:(parseInt(d.initiative||0)>=0?'+':'')+(d.initiative||0)},{l:'TEMPO',v:(d.speed||0)+' ft'}].forEach(function(x){
+    html += '<div style="background:rgba(255,255,255,0.04);border-radius:8px;padding:8px;"><div style="font-size:10px;color:var(--text-dim);letter-spacing:1px;margin-bottom:4px;">'+x.l+'</div><div style="font-size:14px;color:var(--text-main);">'+escHtml(String(x.v))+'</div></div>';
+  });
+  html += '</div></div>';
+
+  html += '<div class="card"><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center;">';
+  stats.forEach(function(s,i){
+    var val = d[statKeys[i]] || 10;
+    html += '<div style="background:rgba(255,255,255,0.04);border-radius:8px;padding:8px;"><div style="font-size:10px;color:var(--text-dim);letter-spacing:1px;">'+s+'</div><div style="font-size:20px;color:var(--gold);">'+mod(val)+'</div><div style="font-size:12px;color:var(--text-dim);">'+val+'</div></div>';
+  });
+  html += '</div></div>';
+
+  if (d.attacks && d.attacks.length) {
+    html += '<div class="card"><div class="card-title">Angriffe</div>';
+    d.attacks.forEach(function(a){ if (!a||!a.name) return; html += '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:13px;"><span style="color:var(--text-main);">'+escHtml(a.name||'—')+'</span><span style="color:var(--text-dim);">'+escHtml(a.atk||'')+' '+escHtml(a.dmg||'')+'</span></div>'; });
+    html += '</div>';
+  }
+  if (d.items && d.items.length) {
+    html += '<div class="card"><div class="card-title">Ausrüstung</div>';
+    d.items.forEach(function(it){ if (!it||!it.name) return; html += '<div style="font-size:12px;color:var(--text-main);padding:3px 0;">'+escHtml(it.name)+(it.qty>1?' ×'+it.qty:'')+'</div>'; });
+    html += '</div>';
+  }
+  if (d.notes) {
+    html += '<div class="card"><div class="card-title">Notizen</div><div style="font-size:13px;color:var(--text-main);white-space:pre-wrap;">'+escHtml(d.notes)+'</div></div>';
+  }
   el.innerHTML = html;
 }
 
-function addMasterItem() {
-  var nameEl = document.getElementById('newItemName');
-  var descEl = document.getElementById('newItemDesc');
-  if (!nameEl || !nameEl.value.trim()) return;
-  fbDb.collection('items').add({
-    name: nameEl.value.trim(),
-    beschreibung: descEl ? descEl.value.trim() : '',
-    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-  }).then(function() {
-    nameEl.value = '';
-    if (descEl) descEl.value = '';
-    loadMasterItemLibrary();
-    toast('✅ Gegenstand erstellt');
-  });
+// ── BURGER MENÜ ──
+function toggleMasterMenu() {
+  var m = document.getElementById('masterMenu');
+  masterMenuOpen = !masterMenuOpen;
+  m.style.display = masterMenuOpen ? 'block' : 'none';
 }
+document.addEventListener('click', function(e) {
+  if (!masterMenuOpen) return;
+  var menu = document.getElementById('masterMenu');
+  var burger = document.querySelector('[onclick="toggleMasterMenu()"]');
+  if (menu && burger && !menu.contains(e.target) && !burger.contains(e.target)) {
+    menu.style.display = 'none';
+    masterMenuOpen = false;
+  }
+});
 
-function giveItemToPlayer(itemId) {
-  var targetEl = document.getElementById('itemTarget_' + itemId);
-  if (!targetEl || !targetEl.value) { toast('⚠️ Spieler wählen!'); return; }
-  var targetUid = targetEl.value;
-  var item = masterItemLibrary.find(function(i) { return i.id === itemId; });
-  if (!item) return;
-  // Spieler-Dokument laden und Item hinzufügen
-  var docRef = fbDb.collection('characters').doc(targetUid);
-  docRef.get().then(function(doc) {
-    if (!doc.exists) { toast('⚠️ Spieler-Dokument nicht gefunden'); return; }
-    var d = doc.data();
-    var chars = d.chars || [d];
-    if (!chars[0].items) chars[0].items = [];
-    chars[0].items.push({ name: item.name, notes: item.beschreibung || '', qty: 1 });
-    return docRef.set(Object.assign({}, d, { chars: chars, _lastEditedBy: fbUser.uid }));
-  }).then(function() {
-    toast('🎁 ' + item.name + ' an ' + masterPlayers[targetUid].name + ' gegeben');
-  }).catch(function(e) { toast('❌ Fehler: ' + e.message); });
-}
+// Stub-Funktionen die noch referenziert werden könnten
+function loadMasterOwnChar() {}
+function masterLoadPlayer(uid) { openMasterFullView(uid); }
+function buildMasterTabs() {}
 
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// ════════════════════════════════════════════════
 // ── SPEICHERN (Diff-basiert) ──
 // ════════════════════════════════════════════════
 
