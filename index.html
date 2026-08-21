@@ -1084,7 +1084,16 @@ function showConcBroken(name){
 function closeConcBrokenModal(){
   document.getElementById('concBrokenModal').classList.remove('show');
 }
-function endConc(){ concSpell=''; autoSave(); }
+function endConc(){
+  var name=concSpell;
+  concSpell='';
+  // Auch beim aktuell konzentrierten Zauber selbst das conc-Flag zurücksetzen
+  for(var ci=0;ci<spells.length;ci++){
+    if(spells[ci].name===name) spells[ci].conc=false;
+  }
+  buildSpells();
+  autoSave();
+}
 
 var _deleteCharIdx=-1;
 function confirmDeleteChar(i){
@@ -1701,6 +1710,11 @@ function toggleModalConc(btn) {
   btn.style.color=newVal?'#0d0a07':'#a08c60';
   // Set or clear active concentration spell
   if(newVal){
+    // Es darf immer nur EIN Zauber gleichzeitig konzentriert sein —
+    // bisherigen aktiven Konzentrationszauber automatisch deaktivieren
+    for(var ci=0;ci<spells.length;ci++){
+      if(ci!==activeSpellIdx && spells[ci].conc) spells[ci].conc=false;
+    }
     concSpell=sp.name||'';
     toast('⚡ Konzentriert: '+concSpell);
   } else {
@@ -2972,7 +2986,9 @@ function initMasterMode() {
       var uid = doc.id;
       if (uid === fbUser.uid) return;
       var d = doc.data();
-      var name = (d.chars && d.chars[0] && d.chars[0].charName) ? d.chars[0].charName : uid;
+      var chars = _normalizeChars(d.chars);
+      var idx = typeof d.activeCharIdx === 'number' ? d.activeCharIdx : 0;
+      var name = (chars && chars[idx] && chars[idx].charName) ? chars[idx].charName : (chars && chars[0] && chars[0].charName) ? chars[0].charName : uid;
       masterPlayers[uid] = { uid: uid, name: name, liveData: null };
     });
     buildMasterPills();
@@ -3031,7 +3047,9 @@ function startLiveListener(uid) {
   var unsub = fbDb.collection('characters').doc(uid).onSnapshot(function(doc) {
     if (!doc.exists) return;
     var d = doc.data();
-    var char = (d.chars && d.chars[0]) ? d.chars[0] : d;
+    var chars = _normalizeChars(d.chars);
+    var idx = typeof d.activeCharIdx === 'number' ? d.activeCharIdx : 0;
+    var char = (chars && chars[idx]) ? chars[idx] : (chars && chars[0]) ? chars[0] : d;
     if (char.charName) masterPlayers[uid].name = char.charName;
     masterPlayers[uid].liveData = char;
     renderMasterCard(uid);
@@ -3124,6 +3142,9 @@ function buildCardHTML(uid) {
 
 // ── VOLLANSICHT (echte Spieler-View, read-only) ──
 var masterFullViewUid = null;
+var _masterOwnCharsBackup = null;
+var _masterOwnActiveIdxBackup = null;
+var masterViewingReadOnly = false; // true solange die Vollansicht eines fremden Charakters aktiv ist — blockiert fbSave()
 
 function openMasterFullView(uid) {
   var p = masterPlayers[uid];
@@ -3133,9 +3154,19 @@ function openMasterFullView(uid) {
   fbDb.collection('characters').doc(uid).get().then(function(doc) {
     if (!doc.exists) { alert('Keine Daten für diesen Spieler.'); return; }
     var d = doc.data();
-    var char = (d.chars && d.chars[0]) ? d.chars[0] : d;
+    var chars = _normalizeChars(d.chars);
+    var idx = typeof d.activeCharIdx === 'number' ? d.activeCharIdx : 0;
+    var char = (chars && chars[idx]) ? chars[idx] : (chars && chars[0]) ? chars[0] : d;
 
-    // Spieler-Daten in die UI laden
+    // Eigenen State sichern und ausstehende eigene Änderungen zuerst speichern,
+    // BEVOR die eigenen Daten durch die fremde Ansicht überschrieben werden.
+    clearTimeout(fbSaveTimer);
+    fbSave();
+    _masterOwnCharsBackup = JSON.parse(JSON.stringify(characters));
+    _masterOwnActiveIdxBackup = activeCharIdx;
+    masterViewingReadOnly = true; // fbSave() blockiert ab jetzt, bis closeMasterFullView() den State restauriert hat
+
+    // Spieler-Daten in die UI laden (nur zur Anzeige — wird beim Schließen wieder verworfen)
     applyData(char);
     buildCharSwitcher();
 
@@ -3186,6 +3217,20 @@ function closeMasterFullView() {
   // Padding zurücksetzen
   document.getElementById('outer').style.paddingTop = '';
 
+  // Eigenen Charakter-State zuverlässig wiederherstellen, BEVOR das Speichern
+  // wieder erlaubt wird — sonst könnten die fremden (angesehenen) Daten
+  // versehentlich als eigene gespeichert werden.
+  clearTimeout(fbSaveTimer); // evtl. während der Ansicht angestoßene (blockierte) Speicherversuche verwerfen
+  if (_masterOwnCharsBackup) {
+    characters = _masterOwnCharsBackup;
+    activeCharIdx = _masterOwnActiveIdxBackup;
+    applyData(characters[activeCharIdx]);
+    buildCharSwitcher();
+    _masterOwnCharsBackup = null;
+    _masterOwnActiveIdxBackup = null;
+  }
+  masterViewingReadOnly = false;
+
   // Master-View wieder anzeigen
   document.getElementById('appRoot').style.display = 'none';
   document.getElementById('masterPage').style.display = 'flex';
@@ -3193,6 +3238,9 @@ function closeMasterFullView() {
   masterFullViewUid = null;
 }
 
+// HINWEIS: renderReadOnlySheet() wird aktuell an keiner Stelle mehr aufgerufen.
+// Die Vollansicht läuft stattdessen über applyData() + das reguläre UI (siehe openMasterFullView()).
+// Bewusst nicht entfernt (kein aktives Problem), aber als Legacy markiert.
 function renderReadOnlySheet(d) {
   var el = document.getElementById('masterFullViewContent');
   var stats = ['STR','DEX','CON','INT','WIS','CHA'];
@@ -3738,6 +3786,10 @@ function _normalizeChars(chars) {
 }
 
 function fbSave() {
+  if (masterViewingReadOnly) {
+    dbgLog('warn', 'fbSave() blockiert: Master befindet sich in der Vollansicht eines fremden Charakters (read-only) — es wird nichts gespeichert, um die fremden Daten nicht versehentlich zu übernehmen.');
+    return;
+  }
   if (!fbUser) {
     dbgLog('err', 'fbSave() abgebrochen: kein fbUser (nicht angemeldet). Es wird nur lokal gespeichert.');
     localSave();
