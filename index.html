@@ -2378,16 +2378,50 @@ function switchChar(i){
   activeCharIdx=i;
   applyData(characters[i]);
   buildCharSwitcher();
+  autoSave();
   toast('Charakter gewechselt');
 }
 function newChar(){
   characters[activeCharIdx]=gather();
-  var blank={charName:'Neuer Charakter',charSub:'Klasse · Level 1 · Rasse',hp:10,temp:0,insp:false,maxHp:'10',profBonus:'+2',passPerc:'10',spells:[],attacks:[],items:[],skills:skills.map(function(s){return{name:s.name,attr:s.attr,val:'0',p:0};})};
+  var blank={charName:'Neuer Charakter',charSub:'Klasse · Level 1 · Rasse',hp:10,temp:0,insp:false,maxHp:'10',profBonus:'+2',passPerc:'10',spells:[],attacks:[],items:[],
+    skills:skills.map(function(s){return{name:s.name,attr:s.attr,val:'0',p:0};}),
+    slotDef:slotDef.map(function(s){return{lv:s.lv,total:0};}),
+    slotUsed:slotUsed.map(function(){return 0;}),
+    coins:{KM:0,SM:0,EM:0,GM:0,PM:0},
+    hdUsed:[],hdType:'W10',exhaustion:0,exhTexts:[],
+    fontSizes:fontSizes.slice(),restConfig:restConfig,
+    concWarningEnabled:true,concSpell:''
+  };
   characters.push(blank);
   activeCharIdx=characters.length-1;
   applyData(blank);
   buildCharSwitcher();
-  toast('Neuer Charakter erstellt');
+  // Neuen Charakter sofort vollständig in Firestore schreiben (kein Debounce)
+  if(fbUser && fbDb){
+    var newIdx = activeCharIdx;
+    var snap = gather();
+    characters[newIdx] = snap;
+    var full = {
+      activeCharIdx: newIdx,
+      _lastEditedBy: fbUser.uid,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      chars: characters.map(function(c){ return c; })
+    };
+    fbDb.collection('characters').doc(fbUser.uid).set(full, { merge: true })
+      .then(function(){
+        _fbLastSaved[newIdx] = JSON.parse(JSON.stringify(snap));
+        localSave();
+        toast('Neuer Charakter erstellt');
+      })
+      .catch(function(e){
+        console.warn('Fehler beim Speichern des neuen Charakters:', e);
+        localSave();
+        toast('Neuer Charakter erstellt (nur lokal)');
+      });
+  } else {
+    localSave();
+    toast('Neuer Charakter erstellt');
+  }
 }
 
 // ── GATHER / APPLY ──
@@ -2447,6 +2481,7 @@ function applyData(d){
   if(d.attacks){ attacks.length=0; d.attacks.forEach(function(a){attacks.push({name:a.name,bonus:a.bonus,dmg:a.dmg,type:a.type,range:a.range,notes:a.notes||'',magic:a.magic||0,magicLabel:a.magicLabel||'',attr:a.attr||'',bonuses:a.bonuses||{},equipped:a.equipped||false});}); }
   if(d.slotDef) d.slotDef.forEach(function(sd,i){ if(slotDef[i])slotDef[i].total=sd.total; });
   if(d.slotUsed) d.slotUsed.forEach(function(u,i){ slotUsed[i]=u; });
+  if(d.spellAttr) s('spellAttr',d.spellAttr);
   s('spellDC',d.spellDC);s('spellAtk',d.spellAtk);
   if(d.spells){ spells.length=0; d.spells.forEach(function(sp){spells.push({name:sp.name,prep:sp.prep,lv:sp.lv,notes:sp.notes||'',conc:sp.conc||false,needsConc:sp.needsConc||false,duration:sp.duration||'',range:sp.range||'',compV:sp.compV||false,compS:sp.compS||false,compM:sp.compM||false});}); }
   if(d.coins){coins.KM=parseInt(d.coins.KM)||0;coins.SM=parseInt(d.coins.SM)||0;coins.EM=parseInt(d.coins.EM)||0;coins.GM=parseInt(d.coins.GM)||0;coins.PM=parseInt(d.coins.PM)||0;}
@@ -3513,18 +3548,29 @@ function fbSave() {
   } catch(e) { localSave(); }
 }
 
+// In-Memory-Fallback für Umgebungen ohne localStorage (z.B. Claude Artifacts)
+var _memStore = {};
+function _lsSet(key, val) {
+  try { localStorage.setItem(key, val); } catch(e) {}
+  _memStore[key] = val;
+}
+function _lsGet(key) {
+  try { var v = localStorage.getItem(key); if (v !== null) return v; } catch(e) {}
+  return _memStore[key] || null;
+}
+
 function localSave() {
   try {
     var snap = gather();
     characters[activeCharIdx] = snap;
     var saveData = { chars: characters.map(function(c){ return c; }), activeCharIdx: activeCharIdx };
-    localStorage.setItem('dnd_autosave', JSON.stringify(saveData));
+    _lsSet('dnd_autosave', JSON.stringify(saveData));
   } catch(e) {}
 }
 
 function localLoad() {
   try {
-    var raw = localStorage.getItem('dnd_autosave');
+    var raw = _lsGet('dnd_autosave');
     if (raw) {
       var d = JSON.parse(raw);
       if (d.chars && d.chars.length > 0) {
@@ -3565,7 +3611,7 @@ function autoLoad(){
     var params=new URLSearchParams(window.location.search);
     var charParam=params.get('char');
     if(charParam){ applyData(JSON.parse(decodeURIComponent(charParam))); return true; }
-    var raw=localStorage.getItem('dnd_autosave');
+    var raw=_lsGet('dnd_autosave');
     if(raw){
       var d=JSON.parse(raw);
       if(d.chars && d.chars.length>0){
@@ -3592,11 +3638,11 @@ try {
   console.warn('Init (vor Login):', e.message);
 }
 
-// Auto-save on any interaction
-document.addEventListener('input',function(){ clearTimeout(window._st); window._st=setTimeout(autoSave,800); });
-document.addEventListener('click',function(e){
+// Auto-save on any interaction (autoSave hat eigenen 1500ms Debounce)
+document.addEventListener('input', function(){ autoSave(); });
+document.addEventListener('click', function(e){
   if(e.target && (e.target.id==='saveBtn' || (e.target.closest && e.target.closest('[data-nosave]')))) return;
-  clearTimeout(window._st); window._st=setTimeout(autoSave,800);
+  autoSave();
 });
 
 // Master-Mode: Body-Klasse für Padding
