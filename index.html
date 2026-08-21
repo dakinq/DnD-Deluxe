@@ -405,28 +405,18 @@ body.master-mode { padding-top: 58px; }
 <!-- MASTER PAGE -->
 <div id="masterPage" style="display:none; position:fixed; top:0;left:0;right:0;bottom:0; z-index:400; background:var(--bg); flex-direction:column; overflow:hidden;">
 
-  <!-- Header -->
-  <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 16px; background:var(--card-bg); border-bottom:1px solid rgba(201,168,76,0.2); flex-shrink:0;">
-    <span style="color:var(--gold); font-size:13px; letter-spacing:2px; text-transform:uppercase; font-weight:700;">👑 Dungeon Master</span>
-    <!-- Burger Menü -->
-    <button onclick="toggleMasterMenu()" style="background:none;border:none;color:var(--text-dim);font-size:22px;cursor:pointer;padding:4px 8px;line-height:1;">☰</button>
-  </div>
+  <!-- Floating Burger Button -->
+  <button onclick="toggleMasterMenu()" style="position:fixed;top:14px;right:14px;z-index:700;background:rgba(10,7,4,0.85);border:1px solid rgba(201,168,76,0.3);border-radius:10px;color:var(--text-dim);font-size:22px;cursor:pointer;padding:6px 12px;line-height:1;backdrop-filter:blur(4px);">☰</button>
 
   <!-- Burger Dropdown -->
-  <div id="masterMenu" style="display:none; position:absolute; top:48px; right:12px; z-index:600; background:var(--card-bg); border:1px solid rgba(201,168,76,0.25); border-radius:10px; padding:8px; min-width:160px; box-shadow:0 4px 20px rgba(0,0,0,0.6);">
+  <div id="masterMenu" style="display:none; position:fixed; top:54px; right:12px; z-index:800; background:var(--card-bg); border:1px solid rgba(201,168,76,0.25); border-radius:10px; padding:8px; min-width:160px; box-shadow:0 4px 20px rgba(0,0,0,0.6);">
     <button onclick="doLogout()" style="display:block;width:100%;padding:10px 14px;background:rgba(180,60,60,0.15);border:1px solid rgba(180,60,60,0.3);border-radius:8px;color:#e07070;font-size:13px;font-family:Georgia,serif;letter-spacing:1px;cursor:pointer;text-align:left;">
       Abmelden
     </button>
   </div>
 
-  <!-- Master-Tabs: Spieler / Gegenstände -->
-  <div style="flex-shrink:0; display:flex; gap:0; padding:10px 16px 0; background:var(--card-bg); border-bottom:1px solid rgba(201,168,76,0.15);">
-    <button id="masterTabPlayers" onclick="switchMasterTab('players')" style="flex:1;padding:8px 4px;border:none;background:rgba(201,168,76,0.18);color:var(--gold);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;border-radius:8px 8px 0 0;font-family:Georgia,serif;transition:all 0.2s;">⚔️ Spieler</button>
-    <button id="masterTabItems" onclick="switchMasterTab('items')" style="flex:1;padding:8px 4px;border:none;background:transparent;color:var(--text-dim);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;border-radius:8px 8px 0 0;font-family:Georgia,serif;transition:all 0.2s;">🎒 Gegenstände</button>
-  </div>
-
   <!-- Spieler-Panel -->
-  <div id="masterPanelPlayers" style="flex:1;overflow:hidden;display:flex;flex-direction:column;">
+  <div id="masterPanelPlayers" style="flex:1;overflow:hidden;display:flex;flex-direction:column;padding-bottom:68px;">
     <!-- Spieler-Pillen (horizontal scroll) -->
     <div style="flex-shrink:0; padding:12px 16px 0; border-bottom:1px solid rgba(201,168,76,0.1);">
       <div id="masterPills" style="display:flex; gap:8px; overflow-x:auto; padding-bottom:12px; -webkit-overflow-scrolling:touch; scrollbar-width:none;">
@@ -443,7 +433,7 @@ body.master-mode { padding-top: 58px; }
   </div>
 
   <!-- Gegenstände-Panel -->
-  <div id="masterPanelItems" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 16px;display:none;">
+  <div id="masterPanelItems" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 16px 82px;display:none;">
     <div class="card">
       <div class="card-title">🎒 Gegenstände verwalten</div>
       <div id="masterItemList"></div>
@@ -451,6 +441,18 @@ body.master-mode { padding-top: 58px; }
         <button class="add-btn" onclick="masterAddItem()" style="width:100%;padding:12px;background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.3);border-radius:10px;color:var(--gold);font-family:Georgia,serif;font-size:13px;letter-spacing:1px;">+ Gegenstand hinzufügen</button>
       </div>
     </div>
+  </div>
+
+  <!-- Master Bottom Tab Bar -->
+  <div style="position:fixed;bottom:0;left:0;right:0;height:68px;background:rgba(10,7,4,0.97);border-top:1px solid rgba(201,168,76,0.2);display:flex;align-items:center;justify-content:space-around;padding:0 4px;z-index:600;">
+    <button id="masterTabPlayers" onclick="switchMasterTab('players')" style="display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(201,168,76,0.12);border:none;border-radius:10px;padding:8px 10px;color:var(--gold);min-width:44px;font-family:Georgia,serif;transition:all 0.2s;">
+      <span style="font-size:20px;line-height:1;">⚔️</span>
+      <span style="font-size:8px;letter-spacing:1px;text-transform:uppercase;">Spieler</span>
+    </button>
+    <button id="masterTabItems" onclick="switchMasterTab('items')" style="display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;border-radius:10px;padding:8px 10px;color:#7a6230;min-width:44px;font-family:Georgia,serif;transition:all 0.2s;">
+      <span style="font-size:20px;line-height:1;">🎒</span>
+      <span style="font-size:8px;letter-spacing:1px;text-transform:uppercase;">Gegenstände</span>
+    </button>
   </div>
 </div>
 
@@ -2978,10 +2980,10 @@ function switchMasterTab(tab) {
   var isPlayers = tab === 'players';
   document.getElementById('masterPanelPlayers').style.display = isPlayers ? 'flex' : 'none';
   document.getElementById('masterPanelItems').style.display = isPlayers ? 'none' : 'block';
-  document.getElementById('masterTabPlayers').style.background = isPlayers ? 'rgba(201,168,76,0.18)' : 'transparent';
-  document.getElementById('masterTabPlayers').style.color = isPlayers ? 'var(--gold)' : 'var(--text-dim)';
-  document.getElementById('masterTabItems').style.background = !isPlayers ? 'rgba(201,168,76,0.18)' : 'transparent';
-  document.getElementById('masterTabItems').style.color = !isPlayers ? 'var(--gold)' : 'var(--text-dim)';
+  document.getElementById('masterTabPlayers').style.background = isPlayers ? 'rgba(201,168,76,0.12)' : 'none';
+  document.getElementById('masterTabPlayers').style.color = isPlayers ? 'var(--gold)' : '#7a6230';
+  document.getElementById('masterTabItems').style.background = !isPlayers ? 'rgba(201,168,76,0.12)' : 'none';
+  document.getElementById('masterTabItems').style.color = !isPlayers ? 'var(--gold)' : '#7a6230';
   if (!isPlayers) buildMasterItemList();
 }
 
