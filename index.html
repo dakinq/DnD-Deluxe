@@ -290,6 +290,25 @@ input, textarea { color:var(--text-main); background:transparent; border:none; o
   100% { opacity:0; pointer-events:none; }
 }
 /* ══════════════════════════════════════ */
+.master-item-card {
+  display:flex; align-items:center; padding:11px 14px;
+  border-bottom:1px solid rgba(201,168,76,0.08); gap:10px;
+}
+.master-item-card:last-child { border-bottom:none; }
+.master-item-card.magic { background:rgba(160,80,255,0.06); }
+.master-item-card.equipped { background:rgba(201,168,76,0.05); }
+.mi-assign-btn {
+  display:flex; align-items:center; justify-content:space-between;
+  width:100%; padding:10px 14px;
+  background:rgba(255,255,255,0.03); border:1px solid rgba(201,168,76,0.12);
+  border-radius:10px; color:var(--text-dim); font-family:Georgia,serif;
+  font-size:13px; transition:all 0.2s;
+}
+.mi-assign-btn.assigned {
+  background:rgba(201,168,76,0.12); border-color:rgba(201,168,76,0.4);
+  color:var(--gold);
+}
+
 .master-tab {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
@@ -400,17 +419,36 @@ body.master-mode { padding-top: 58px; }
     </button>
   </div>
 
-  <!-- Spieler-Pillen (horizontal scroll) -->
-  <div style="flex-shrink:0; padding:12px 16px 0; border-bottom:1px solid rgba(201,168,76,0.1);">
-    <div id="masterPills" style="display:flex; gap:8px; overflow-x:auto; padding-bottom:12px; -webkit-overflow-scrolling:touch; scrollbar-width:none;">
+  <!-- Master-Tabs: Spieler / Gegenstände -->
+  <div style="flex-shrink:0; display:flex; gap:0; padding:10px 16px 0; background:var(--card-bg); border-bottom:1px solid rgba(201,168,76,0.15);">
+    <button id="masterTabPlayers" onclick="switchMasterTab('players')" style="flex:1;padding:8px 4px;border:none;background:rgba(201,168,76,0.18);color:var(--gold);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;border-radius:8px 8px 0 0;font-family:Georgia,serif;transition:all 0.2s;">⚔️ Spieler</button>
+    <button id="masterTabItems" onclick="switchMasterTab('items')" style="flex:1;padding:8px 4px;border:none;background:transparent;color:var(--text-dim);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;border-radius:8px 8px 0 0;font-family:Georgia,serif;transition:all 0.2s;">🎒 Gegenstände</button>
+  </div>
+
+  <!-- Spieler-Panel -->
+  <div id="masterPanelPlayers" style="flex:1;overflow:hidden;display:flex;flex-direction:column;">
+    <!-- Spieler-Pillen (horizontal scroll) -->
+    <div style="flex-shrink:0; padding:12px 16px 0; border-bottom:1px solid rgba(201,168,76,0.1);">
+      <div id="masterPills" style="display:flex; gap:8px; overflow-x:auto; padding-bottom:12px; -webkit-overflow-scrolling:touch; scrollbar-width:none;">
+      </div>
+    </div>
+    <!-- Dashboard (scrollbar) -->
+    <div id="masterDashboard" style="flex:1; overflow-y:auto; padding:14px 16px; -webkit-overflow-scrolling:touch;">
+      <div id="masterCards" style="display:flex; flex-direction:column; gap:12px;">
+        <div style="color:var(--text-dim); font-size:13px; text-align:center; padding:30px 0; letter-spacing:1px;">
+          Spieler antippen um Karte anzuzeigen
+        </div>
+      </div>
     </div>
   </div>
 
-  <!-- Dashboard (scrollbar) -->
-  <div id="masterDashboard" style="flex:1; overflow-y:auto; padding:14px 16px; -webkit-overflow-scrolling:touch;">
-    <div id="masterCards" style="display:flex; flex-direction:column; gap:12px;">
-      <div style="color:var(--text-dim); font-size:13px; text-align:center; padding:30px 0; letter-spacing:1px;">
-        Spieler antippen um Karte anzuzeigen
+  <!-- Gegenstände-Panel -->
+  <div id="masterPanelItems" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 16px;display:none;">
+    <div class="card">
+      <div class="card-title">🎒 Gegenstände verwalten</div>
+      <div id="masterItemList"></div>
+      <div style="padding:6px 0 2px;">
+        <button class="add-btn" onclick="masterAddItem()" style="width:100%;padding:12px;background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.3);border-radius:10px;color:var(--gold);font-family:Georgia,serif;font-size:13px;letter-spacing:1px;">+ Gegenstand hinzufügen</button>
       </div>
     </div>
   </div>
@@ -424,6 +462,42 @@ body.master-mode { padding-top: 58px; }
   </div>
   <div id="masterFullViewContent" style="flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:14px;">
     <!-- Hier wird der Charakter-Bogen read-only geladen -->
+  </div>
+</div>
+
+<!-- MASTER ITEM DETAIL MODAL -->
+<div id="masterItemModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:600;background:rgba(0,0,0,0.8);align-items:flex-end;justify-content:center;">
+  <div style="background:var(--card-bg);border:1px solid rgba(201,168,76,0.3);border-radius:16px 16px 0 0;width:100%;max-width:520px;padding:20px 18px 36px;position:relative;">
+    <button onclick="closeMasterItemModal()" style="position:absolute;top:14px;right:14px;background:rgba(255,255,255,0.08);border:none;color:var(--text-dim);width:32px;height:32px;border-radius:50%;font-size:18px;display:flex;align-items:center;justify-content:center;">✕</button>
+    <div style="font-size:11px;letter-spacing:3px;color:var(--gold);text-transform:uppercase;margin-bottom:16px;text-align:center;">Gegenstand</div>
+
+    <!-- Name -->
+    <input id="miName" type="text" placeholder="Name des Gegenstands" style="width:100%;font-size:18px;color:var(--text-bright);background:rgba(255,255,255,0.05);border:1px solid rgba(201,168,76,0.25);border-radius:10px;padding:10px 14px;outline:none;font-family:Georgia,serif;margin-bottom:10px;">
+
+    <!-- Beschreibung -->
+    <textarea id="miDesc" placeholder="Beschreibung / Eigenschaften..." rows="3" style="width:100%;font-size:14px;color:var(--text-main);background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.15);border-radius:10px;padding:10px 14px;outline:none;font-family:Georgia,serif;resize:none;margin-bottom:10px;"></textarea>
+
+    <!-- Optionen: Menge, Magisch, Ausgerüstet -->
+    <div style="display:flex;gap:10px;margin-bottom:14px;">
+      <div style="flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.15);border-radius:10px;padding:10px;text-align:center;">
+        <div style="font-size:10px;letter-spacing:2px;color:var(--text-dim);margin-bottom:6px;">MENGE</div>
+        <input id="miQty" type="number" min="1" value="1" style="width:60px;text-align:center;font-size:18px;color:var(--text-bright);background:transparent;border:none;outline:none;font-family:Georgia,serif;">
+      </div>
+      <button id="miMagicBtn" onclick="toggleMasterItemMagic()" style="flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.15);border-radius:10px;padding:10px;font-family:Georgia,serif;color:var(--text-dim);font-size:13px;transition:all 0.2s;">✨ Magisch</button>
+      <button id="miEquipBtn" onclick="toggleMasterItemEquip()" style="flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.15);border-radius:10px;padding:10px;font-family:Georgia,serif;color:var(--text-dim);font-size:13px;transition:all 0.2s;">⚔️ Ausgerüstet</button>
+    </div>
+
+    <!-- Zuweisen an Spieler -->
+    <div style="margin-bottom:14px;">
+      <div style="font-size:10px;letter-spacing:2px;color:var(--text-dim);margin-bottom:8px;">AN SPIELER ZUWEISEN</div>
+      <div id="miPlayerList" style="display:flex;flex-direction:column;gap:6px;max-height:160px;overflow-y:auto;"></div>
+    </div>
+
+    <!-- Speichern / Löschen -->
+    <div style="display:flex;gap:10px;">
+      <button onclick="saveMasterItem()" style="flex:1;padding:13px;background:rgba(201,168,76,0.18);border:1px solid rgba(201,168,76,0.4);border-radius:10px;color:var(--gold);font-family:Georgia,serif;font-size:14px;letter-spacing:1px;">💾 Speichern</button>
+      <button onclick="deleteMasterItem()" style="padding:13px 18px;background:rgba(192,57,43,0.15);border:1px solid rgba(192,57,43,0.3);border-radius:10px;color:#e07070;font-family:Georgia,serif;font-size:14px;">🗑</button>
+    </div>
   </div>
 </div>
 
@@ -2616,6 +2690,8 @@ function initMasterMode() {
     });
     buildMasterPills();
   });
+  // Master-Gegenstände laden
+  loadMasterItems();
 }
 
 // ── PILLEN ──
@@ -2887,6 +2963,308 @@ document.addEventListener('click', function(e) {
 function loadMasterOwnChar() {}
 function masterLoadPlayer(uid) { openMasterFullView(uid); }
 function buildMasterTabs() {}
+
+// ══════════════════════════════════════════════
+// ── MASTER ITEMS SYSTEM ──
+// ══════════════════════════════════════════════
+
+var masterItems = []; // [{id, name, desc, qty, magic, equipped, assignedTo:[uid,...]}]
+var masterItemEditIdx = -1;
+var miIsMagic = false;
+var miIsEquipped = false;
+
+// Tab-Switching
+function switchMasterTab(tab) {
+  var isPlayers = tab === 'players';
+  document.getElementById('masterPanelPlayers').style.display = isPlayers ? 'flex' : 'none';
+  document.getElementById('masterPanelItems').style.display = isPlayers ? 'none' : 'block';
+  document.getElementById('masterTabPlayers').style.background = isPlayers ? 'rgba(201,168,76,0.18)' : 'transparent';
+  document.getElementById('masterTabPlayers').style.color = isPlayers ? 'var(--gold)' : 'var(--text-dim)';
+  document.getElementById('masterTabItems').style.background = !isPlayers ? 'rgba(201,168,76,0.18)' : 'transparent';
+  document.getElementById('masterTabItems').style.color = !isPlayers ? 'var(--gold)' : 'var(--text-dim)';
+  if (!isPlayers) buildMasterItemList();
+}
+
+// Master-Items aus Firestore laden
+function loadMasterItems() {
+  if (!fbDb) return;
+  fbDb.collection('masterItems').orderBy('createdAt','asc').onSnapshot(function(snap) {
+    masterItems = [];
+    snap.forEach(function(doc) {
+      var d = doc.data();
+      d._id = doc.id;
+      masterItems.push(d);
+    });
+    buildMasterItemList();
+  }, function(err) {
+    // Fallback: lokale Liste
+    buildMasterItemList();
+  });
+}
+
+// Master-Item-Liste rendern
+function buildMasterItemList() {
+  var el = document.getElementById('masterItemList');
+  if (!el) return;
+  if (masterItems.length === 0) {
+    el.innerHTML = '<div style="color:var(--text-dim);font-size:13px;text-align:center;padding:20px 0;letter-spacing:1px;">Noch keine Gegenstände erstellt</div>';
+    return;
+  }
+  var html = '';
+  for (var i = 0; i < masterItems.length; i++) {
+    var it = masterItems[i];
+    var isMagic = it.magic || false;
+    var isEq = it.equipped || false;
+    var assigned = it.assignedTo && it.assignedTo.length > 0;
+    var cardClass = 'master-item-card' + (isMagic ? ' magic' : '') + (isEq ? ' equipped' : '');
+    var nameColor = isMagic ? '#cc88ff' : isEq ? 'var(--gold-light)' : 'var(--text-main)';
+    var assignInfo = '';
+    if (assigned) {
+      var names = [];
+      for (var j = 0; j < it.assignedTo.length; j++) {
+        var p = masterPlayers[it.assignedTo[j]];
+        if (p) names.push(p.name || it.assignedTo[j]);
+      }
+      assignInfo = '<span style="font-size:11px;color:var(--gold);background:rgba(201,168,76,0.12);border-radius:4px;padding:1px 6px;margin-left:4px;">→ ' + escHtml(names.join(', ')) + '</span>';
+    }
+    html += '<div class="' + cardClass + '">' +
+      (isMagic ? '<span style="font-size:14px;">✨</span>' : '') +
+      '<button onclick="openMasterItemModal(' + i + ')" style="flex:1;background:none;border:none;text-align:left;padding:0;color:' + nameColor + ';font-size:15px;font-family:Georgia,serif;display:flex;align-items:center;gap:6px;">' +
+        '<span>' + escHtml(it.name || 'Gegenstand') + '</span>' +
+        (it.qty > 1 ? '<span style="font-size:12px;color:var(--text-dim);">×' + it.qty + '</span>' : '') +
+        assignInfo +
+      '</button>' +
+      (isEq ? '<span style="font-size:10px;color:var(--gold-dim);">⚔️</span>' : '') +
+    '</div>';
+  }
+  el.innerHTML = html;
+}
+
+// Neuen Master-Gegenstand hinzufügen
+function masterAddItem() {
+  openMasterItemModal(-1);
+}
+
+// Master-Item-Modal öffnen
+function openMasterItemModal(idx) {
+  masterItemEditIdx = idx;
+  var it = idx >= 0 ? masterItems[idx] : { name:'', desc:'', qty:1, magic:false, equipped:false, assignedTo:[] };
+  miIsMagic = it.magic || false;
+  miIsEquipped = it.equipped || false;
+
+  document.getElementById('miName').value = it.name || '';
+  document.getElementById('miDesc').value = it.desc || '';
+  document.getElementById('miQty').value = it.qty || 1;
+  updateMasterItemBtns();
+
+  // Spielerliste
+  var pl = document.getElementById('miPlayerList');
+  var assignedTo = it.assignedTo || [];
+  var playerHtml = '';
+  var uids = Object.keys(masterPlayers);
+  if (uids.length === 0) {
+    playerHtml = '<div style="color:var(--text-dim);font-size:13px;padding:8px 0;">Keine Spieler verbunden</div>';
+  }
+  for (var i = 0; i < uids.length; i++) {
+    var uid = uids[i];
+    var p = masterPlayers[uid];
+    var isAssigned = assignedTo.indexOf(uid) >= 0;
+    playerHtml += '<button class="mi-assign-btn' + (isAssigned ? ' assigned' : '') + '" onclick="toggleMasterItemAssign(\'' + uid + '\')" id="miAssign_' + uid + '">' +
+      '<span>' + escHtml(p.name || uid) + '</span>' +
+      '<span>' + (isAssigned ? '✓ Zugewiesen' : '+ Zuweisen') + '</span>' +
+    '</button>';
+  }
+  pl.innerHTML = playerHtml;
+
+  var modal = document.getElementById('masterItemModal');
+  modal.style.display = 'flex';
+  document.getElementById('miName').focus();
+}
+
+function closeMasterItemModal() {
+  document.getElementById('masterItemModal').style.display = 'none';
+}
+
+function toggleMasterItemMagic() {
+  miIsMagic = !miIsMagic;
+  updateMasterItemBtns();
+}
+function toggleMasterItemEquip() {
+  miIsEquipped = !miIsEquipped;
+  updateMasterItemBtns();
+}
+function updateMasterItemBtns() {
+  var mb = document.getElementById('miMagicBtn');
+  var eb = document.getElementById('miEquipBtn');
+  if (mb) {
+    mb.style.background = miIsMagic ? 'rgba(160,80,255,0.18)' : 'rgba(255,255,255,0.04)';
+    mb.style.border = miIsMagic ? '1px solid rgba(160,80,255,0.5)' : '1px solid rgba(201,168,76,0.15)';
+    mb.style.color = miIsMagic ? '#cc88ff' : 'var(--text-dim)';
+  }
+  if (eb) {
+    eb.style.background = miIsEquipped ? 'rgba(201,168,76,0.18)' : 'rgba(255,255,255,0.04)';
+    eb.style.border = miIsEquipped ? '1px solid rgba(201,168,76,0.4)' : '1px solid rgba(201,168,76,0.15)';
+    eb.style.color = miIsEquipped ? 'var(--gold)' : 'var(--text-dim)';
+  }
+}
+
+// Spieler-Zuweisung toggeln
+function toggleMasterItemAssign(uid) {
+  var idx = masterItemEditIdx;
+  var it = idx >= 0 ? masterItems[idx] : null;
+  var assignedTo = it ? (it.assignedTo || []) : (window._tempMiAssigned || []);
+  if (!window._tempMiAssigned && idx < 0) window._tempMiAssigned = [];
+  if (idx < 0) assignedTo = window._tempMiAssigned;
+
+  var pos = assignedTo.indexOf(uid);
+  if (pos >= 0) {
+    assignedTo.splice(pos, 1);
+  } else {
+    assignedTo.push(uid);
+  }
+  if (idx >= 0) masterItems[idx].assignedTo = assignedTo;
+
+  // Button updaten
+  var btn = document.getElementById('miAssign_' + uid);
+  if (btn) {
+    var isAssigned = assignedTo.indexOf(uid) >= 0;
+    btn.className = 'mi-assign-btn' + (isAssigned ? ' assigned' : '');
+    btn.querySelector('span:last-child').textContent = isAssigned ? '✓ Zugewiesen' : '+ Zuweisen';
+  }
+}
+
+// Master-Item speichern
+function saveMasterItem() {
+  var name = document.getElementById('miName').value.trim();
+  if (!name) { toast('Bitte Namen eingeben'); return; }
+  var qty = parseInt(document.getElementById('miQty').value) || 1;
+  var desc = document.getElementById('miDesc').value.trim();
+
+  var idx = masterItemEditIdx;
+  var it = idx >= 0 ? masterItems[idx] : {};
+  var assignedTo = it.assignedTo || (window._tempMiAssigned || []);
+
+  var data = {
+    name: name, desc: desc, qty: qty,
+    magic: miIsMagic, equipped: miIsEquipped,
+    assignedTo: assignedTo,
+    createdAt: it.createdAt || Date.now(),
+    updatedAt: Date.now()
+  };
+
+  if (fbDb) {
+    if (idx >= 0 && masterItems[idx]._id) {
+      // Update
+      fbDb.collection('masterItems').doc(masterItems[idx]._id).set(data).then(function() {
+        // Zuweisen an Spieler
+        assignItemToPlayers(masterItems[idx]._id, data);
+        toast('Gegenstand gespeichert');
+        closeMasterItemModal();
+      });
+    } else {
+      // Neu
+      fbDb.collection('masterItems').add(data).then(function(ref) {
+        assignItemToPlayers(ref.id, data);
+        toast('Gegenstand erstellt');
+        window._tempMiAssigned = [];
+        closeMasterItemModal();
+      });
+    }
+  } else {
+    // Kein Firestore – lokal
+    if (idx >= 0) {
+      masterItems[idx] = Object.assign(masterItems[idx], data);
+    } else {
+      data._id = 'local_' + Date.now();
+      masterItems.push(data);
+      window._tempMiAssigned = [];
+    }
+    buildMasterItemList();
+    closeMasterItemModal();
+    toast('Gegenstand gespeichert (lokal)');
+  }
+}
+
+// Item dem Spieler-Charakter in Firestore zuweisen
+function assignItemToPlayers(itemId, itemData) {
+  if (!fbDb || !itemData.assignedTo) return;
+  var assignedTo = itemData.assignedTo;
+
+  // Alle Spieler durchlaufen
+  var allUids = Object.keys(masterPlayers);
+  for (var i = 0; i < allUids.length; i++) {
+    var uid = allUids[i];
+    var shouldAssign = assignedTo.indexOf(uid) >= 0;
+    (function(playerId, assign) {
+      fbDb.collection('characters').doc(playerId).get().then(function(doc) {
+        if (!doc.exists) return;
+        var d = doc.data();
+        var chars = d.chars || [d];
+        var char = chars[0] || {};
+        var items = char.items || [];
+
+        // Prüfen ob Item schon vorhanden (per masterItemId)
+        var existingIdx = -1;
+        for (var k = 0; k < items.length; k++) {
+          if (items[k].masterItemId === itemId) { existingIdx = k; break; }
+        }
+
+        if (assign) {
+          var newItem = {
+            name: itemData.name,
+            qty: itemData.qty || 1,
+            notes: itemData.desc || '',
+            magic: itemData.magic || false,
+            equipped: itemData.equipped || false,
+            masterItemId: itemId
+          };
+          if (existingIdx >= 0) {
+            items[existingIdx] = newItem; // aktualisieren
+          } else {
+            items.push(newItem); // neu hinzufügen
+          }
+        } else {
+          // Entfernen wenn nicht mehr zugewiesen
+          if (existingIdx >= 0) {
+            items.splice(existingIdx, 1);
+          }
+        }
+
+        // Zurückschreiben
+        if (d.chars && d.chars[0]) {
+          var updatedChars = d.chars.slice();
+          updatedChars[0] = Object.assign({}, updatedChars[0], { items: items });
+          fbDb.collection('characters').doc(playerId).update({ chars: updatedChars });
+        } else {
+          fbDb.collection('characters').doc(playerId).update({ items: items });
+        }
+      });
+    })(uid, shouldAssign);
+  }
+}
+
+// Master-Item löschen
+function deleteMasterItem() {
+  var idx = masterItemEditIdx;
+  if (idx < 0) { closeMasterItemModal(); return; }
+  var it = masterItems[idx];
+  if (!confirm('Gegenstand "' + (it.name || 'Gegenstand') + '" wirklich löschen?')) return;
+
+  if (fbDb && it._id) {
+    // Aus allen Spielern entfernen
+    var removeData = Object.assign({}, it, { assignedTo: [] });
+    assignItemToPlayers(it._id, removeData);
+    fbDb.collection('masterItems').doc(it._id).delete().then(function() {
+      toast('Gegenstand gelöscht');
+      closeMasterItemModal();
+    });
+  } else {
+    masterItems.splice(idx, 1);
+    buildMasterItemList();
+    closeMasterItemModal();
+    toast('Gegenstand gelöscht');
+  }
+}
 
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
