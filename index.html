@@ -2831,11 +2831,11 @@ function initPlayerMode() {
             });
             buildCharSwitcher();
             localSave();
-            console.log('Firestore: ' + characters.length + ' Charakter(e) geladen');
+            dbgLog('ok', 'Initial geladen: ' + characters.length + ' Charakter(e) aus Firestore (aktiv: ' + activeCharIdx + ')');
           } else {
             // Dokument existiert aber hat kein chars-Array (altes Format)
             // Versuche applyData mit dem Dokument selbst, dann neu speichern
-            console.warn('Firestore: Dokument hat kein chars-Array, migriere...');
+            dbgLog('warn', 'Dokument ohne chars-Array gefunden — migriere zu neuem Format...');
             applyData(d);
             // Sofort als neues Format hochladen
             setTimeout(function() {
@@ -2854,34 +2854,59 @@ function initPlayerMode() {
                   _fbLastSaved[0] = JSON.parse(JSON.stringify(snap));
                   buildCharSwitcher();
                   localSave();
-                  console.log('Firestore: Migration zu chars-Array erfolgreich');
+                  dbgLog('ok', 'Migration zu chars-Array erfolgreich');
                 })
-                .catch(function(e) { console.warn('Migration Fehler:', e); localLoad(); });
+                .catch(function(e) { dbgLog('err', 'Migration fehlgeschlagen', e); localLoad(); });
             }, 200);
           }
         } catch(e) {
-          console.warn('Initialladen Fehler:', e);
+          dbgLog('err', 'Fehler beim Initialladen aus Firestore — lade aus localStorage', e);
           localLoad();
         }
         return;
       }
-      // Folge-Updates: Nur anwenden wenn Änderung vom Master kam
-      if (d._lastEditedBy && d._lastEditedBy !== fbUser.uid) {
-        try {
-          characters = d.chars || [d];
+      // Folge-Updates: prüfen ob sich der Inhalt wirklich geändert hat
+      // (nicht nur anhand der UID, da derselbe Account auf mehreren Geräten
+      // angemeldet sein kann — dann wäre _lastEditedBy identisch, obwohl
+      // die Daten von einem ANDEREN Gerät kommen und übernommen werden müssen)
+      try {
+        var idx = typeof d.activeCharIdx === 'number' ? d.activeCharIdx : 0;
+        var incomingChars = d.chars || [d];
+        var incomingChar = incomingChars[idx];
+        var localChar = _fbLastSaved[idx];
+        var sameAsLocal = JSON.stringify(incomingChar) === JSON.stringify(localChar);
+
+        if (sameAsLocal) {
+          dbgLog('info', 'Update erhalten (Charakter ' + idx + ') — identisch mit lokalem Stand, wird ignoriert (vermutlich Echo der eigenen Speicherung).');
+        } else if (d._lastEditedBy && d._lastEditedBy !== fbUser.uid) {
+          characters = incomingChars;
           activeCharIdx = 0;
           applyData(characters[0]);
+          incomingChars.forEach(function(c, i) { _fbLastSaved[i] = JSON.parse(JSON.stringify(c)); });
           buildCharSwitcher();
+          localSave();
+          dbgLog('ok', 'Update vom Spielleiter übernommen (Charakter ' + idx + ').');
           toast('📋 Master hat deinen Bogen aktualisiert');
-        } catch(e) {}
+        } else {
+          // Gleicher Account, aber Inhalt unterscheidet sich vom lokal bekannten Stand
+          // → vermutlich ein anderes Gerät/Tab desselben Accounts hat gespeichert.
+          characters = incomingChars;
+          activeCharIdx = idx < characters.length ? idx : 0;
+          applyData(characters[activeCharIdx]);
+          incomingChars.forEach(function(c, i) { _fbLastSaved[i] = JSON.parse(JSON.stringify(c)); });
+          buildCharSwitcher();
+          localSave();
+          dbgLog('warn', 'Update vom selben Account, aber abweichender Inhalt (vermutlich anderes Gerät/Tab) — wurde übernommen (Charakter ' + idx + ').');
+        }
+      } catch(e) {
+        dbgLog('err', 'Fehler beim Verarbeiten eines Live-Updates', e);
       }
     } else {
       // Kein Cloud-Save → localStorage laden und sofort zu Firestore hochladen
-      console.log('Firestore: Kein Dokument vorhanden, lade aus localStorage...');
+      dbgLog('warn', 'Kein Firestore-Dokument für diesen Account vorhanden — lade aus localStorage und lege in Firestore an.');
       var loaded = localLoad();
       if (!loaded) {
-        // Auch kein localStorage → Standard-Daten hochladen
-        console.log('Firestore: Kein localStorage, speichere Standard-Daten...');
+        dbgLog('info', 'Kein localStorage-Stand vorhanden — Standard-Daten werden hochgeladen.');
       }
       _playerInitialLoadDone = true;
       // Sofort in Firestore anlegen
@@ -2891,7 +2916,7 @@ function initPlayerMode() {
       }, 300);
     }
   }, function(e) {
-    console.warn('Echtzeit-Listener Fehler:', e);
+    dbgLog('err', 'Echtzeit-Listener-Fehler (Verbindung zu Firestore unterbrochen?) — lade aus localStorage', e);
     localLoad();
   });
   fbListeners.push(unsub);
