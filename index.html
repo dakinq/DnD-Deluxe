@@ -479,14 +479,19 @@ body.master-mode { padding-top: 58px; }
     <!-- Beschreibung -->
     <textarea id="miDesc" placeholder="Beschreibung / Eigenschaften..." rows="3" style="width:100%;font-size:14px;color:var(--text-main);background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.15);border-radius:10px;padding:10px 14px;outline:none;font-family:Georgia,serif;resize:none;margin-bottom:10px;"></textarea>
 
-    <!-- Optionen: Menge, Magisch, Ausgerüstet -->
+    <!-- Optionen: Menge, Magisch -->
     <div style="display:flex;gap:10px;margin-bottom:14px;">
       <div style="flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.15);border-radius:10px;padding:10px;text-align:center;">
         <div style="font-size:10px;letter-spacing:2px;color:var(--text-dim);margin-bottom:6px;">MENGE</div>
         <input id="miQty" type="number" min="1" value="1" style="width:60px;text-align:center;font-size:18px;color:var(--text-bright);background:transparent;border:none;outline:none;font-family:Georgia,serif;">
       </div>
-      <button id="miMagicBtn" onclick="toggleMasterItemMagic()" style="flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.15);border-radius:10px;padding:10px;font-family:Georgia,serif;color:var(--text-dim);font-size:13px;transition:all 0.2s;">✨ Magisch</button>
-      <button id="miEquipBtn" onclick="toggleMasterItemEquip()" style="flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.15);border-radius:10px;padding:10px;font-family:Georgia,serif;color:var(--text-dim);font-size:13px;transition:all 0.2s;">⚔️ Ausgerüstet</button>
+      <button id="miMagicBtn" onclick="toggleMasterItemMagic()" style="flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(160,80,255,0.15);border-radius:10px;padding:10px;font-family:Georgia,serif;color:var(--text-dim);font-size:13px;transition:all 0.2s;">✨ Magisch</button>
+    </div>
+
+    <!-- Boni -->
+    <div style="margin-bottom:14px;">
+      <div style="font-size:10px;letter-spacing:2px;color:var(--text-dim);margin-bottom:8px;">BONI</div>
+      <div id="miBonusPanel"></div>
     </div>
 
     <!-- Zuweisen an Spieler -->
@@ -2977,10 +2982,10 @@ function buildMasterTabs() {}
 // ── MASTER ITEMS SYSTEM ──
 // ══════════════════════════════════════════════
 
-var masterItems = []; // [{id, name, desc, qty, magic, equipped, assignedTo:[uid,...]}]
+var masterItems = []; // [{id, name, desc, qty, magic, bonuses:{}, assignedTo:[uid,...]}]
 var masterItemEditIdx = -1;
 var miIsMagic = false;
-var miIsEquipped = false;
+var miItemBonuses = {};
 
 // Tab-Switching
 function switchMasterTab(tab) {
@@ -3036,8 +3041,11 @@ function buildMasterItemList() {
     var isMagic = it.magic || false;
     var isEq = it.equipped || false;
     var assigned = it.assignedTo && it.assignedTo.length > 0;
-    var cardClass = 'master-item-card' + (isMagic ? ' magic' : '') + (isEq ? ' equipped' : '');
-    var nameColor = isMagic ? '#cc88ff' : isEq ? 'var(--gold-light)' : 'var(--text-main)';
+    var cardClass = 'master-item-card' + (isMagic ? ' magic' : '');
+    var nameColor = isMagic ? '#cc88ff' : 'var(--text-main)';
+    var bonusParts = [];
+    var _bl = {'statRK':'RK','statINI':'INI','statBEW':'BEW','aSTAm':'STÄ','aGESm':'GES','aKONm':'KON','aINTm':'INT','aWEIm':'WEI','aCHAm':'CHA','profBonus':'ÜB','passPerc':'PW'};
+    if (it.bonuses) { Object.keys(it.bonuses).forEach(function(k){ var v=parseInt(it.bonuses[k])||0; if(v) bonusParts.push(_bl[k]+' '+(v>0?'+':'')+v); }); }
     var assignInfo = '';
     if (assigned) {
       var names = [];
@@ -3049,12 +3057,14 @@ function buildMasterItemList() {
     }
     html += '<div class="' + cardClass + '">' +
       (isMagic ? '<span style="font-size:14px;">✨</span>' : '') +
-      '<button onclick="openMasterItemModal(' + i + ')" style="flex:1;background:none;border:none;text-align:left;padding:0;color:' + nameColor + ';font-size:15px;font-family:Georgia,serif;display:flex;align-items:center;gap:6px;">' +
-        '<span>' + escHtml(it.name || 'Gegenstand') + '</span>' +
-        (it.qty > 1 ? '<span style="font-size:12px;color:var(--text-dim);">×' + it.qty + '</span>' : '') +
-        assignInfo +
+      '<button onclick="openMasterItemModal(' + i + ')" style="flex:1;background:none;border:none;text-align:left;padding:0;color:' + nameColor + ';font-size:15px;font-family:Georgia,serif;display:flex;flex-direction:column;align-items:flex-start;gap:2px;">' +
+        '<div style="display:flex;align-items:center;gap:6px;">' +
+          '<span>' + escHtml(it.name || 'Gegenstand') + '</span>' +
+          (it.qty > 1 ? '<span style="font-size:12px;color:var(--text-dim);">×' + it.qty + '</span>' : '') +
+          assignInfo +
+        '</div>' +
+        (bonusParts.length ? '<span style="font-size:11px;color:var(--gold);opacity:0.8;">' + escHtml(bonusParts.join(' · ')) + '</span>' : '') +
       '</button>' +
-      (isEq ? '<span style="font-size:10px;color:var(--gold-dim);">⚔️</span>' : '') +
     '</div>';
   }
   el.innerHTML = html;
@@ -3068,14 +3078,15 @@ function masterAddItem() {
 // Master-Item-Modal öffnen
 function openMasterItemModal(idx) {
   masterItemEditIdx = idx;
-  var it = idx >= 0 ? masterItems[idx] : { name:'', desc:'', qty:1, magic:false, equipped:false, assignedTo:[] };
+  var it = idx >= 0 ? masterItems[idx] : { name:'', desc:'', qty:1, magic:false, bonuses:{}, assignedTo:[] };
   miIsMagic = it.magic || false;
-  miIsEquipped = it.equipped || false;
+  miItemBonuses = JSON.parse(JSON.stringify(it.bonuses || {}));
 
   document.getElementById('miName').value = it.name || '';
   document.getElementById('miDesc').value = it.desc || '';
   document.getElementById('miQty').value = it.qty || 1;
   updateMasterItemBtns();
+  buildMiBonusPanel();
 
   // Spielerliste
   var pl = document.getElementById('miPlayerList');
@@ -3109,23 +3120,138 @@ function toggleMasterItemMagic() {
   miIsMagic = !miIsMagic;
   updateMasterItemBtns();
 }
-function toggleMasterItemEquip() {
-  miIsEquipped = !miIsEquipped;
-  updateMasterItemBtns();
-}
 function updateMasterItemBtns() {
   var mb = document.getElementById('miMagicBtn');
-  var eb = document.getElementById('miEquipBtn');
   if (mb) {
     mb.style.background = miIsMagic ? 'rgba(160,80,255,0.18)' : 'rgba(255,255,255,0.04)';
-    mb.style.border = miIsMagic ? '1px solid rgba(160,80,255,0.5)' : '1px solid rgba(201,168,76,0.15)';
+    mb.style.border = miIsMagic ? '1px solid rgba(160,80,255,0.5)' : '1px solid rgba(160,80,255,0.15)';
     mb.style.color = miIsMagic ? '#cc88ff' : 'var(--text-dim)';
   }
-  if (eb) {
-    eb.style.background = miIsEquipped ? 'rgba(201,168,76,0.18)' : 'rgba(255,255,255,0.04)';
-    eb.style.border = miIsEquipped ? '1px solid rgba(201,168,76,0.4)' : '1px solid rgba(201,168,76,0.15)';
-    eb.style.color = miIsEquipped ? 'var(--gold)' : 'var(--text-dim)';
+}
+
+// ── MASTER ITEM BONUS SYSTEM ──
+var _miBonusIds    = ['statRK','statINI','statBEW','aSTAm','aGESm','aKONm','aINTm','aWEIm','aCHAm','profBonus','passPerc'];
+var _miBonusLabels = {'statRK':'RK','statINI':'INI','statBEW':'BEW','aSTAm':'STÄ','aGESm':'GES','aKONm':'KON','aINTm':'INT','aWEIm':'WEI','aCHAm':'CHA','profBonus':'ÜB','passPerc':'PW'};
+var _miBonusNames  = {'statRK':'Rüstungsklasse','statINI':'Initiative','statBEW':'Bewegung','aSTAm':'Stärke','aGESm':'Geschick','aKONm':'Konstitution','aINTm':'Intelligenz','aWEIm':'Weisheit','aCHAm':'Charisma','profBonus':'Übungsbonus','passPerc':'Pass. Wahrn.'};
+
+function buildMiBonusPanel() {
+  var panel = document.getElementById('miBonusPanel');
+  if (!panel) return;
+  panel.innerHTML = '';
+
+  // Active bonus rows
+  var active = _miBonusIds.filter(function(sid){ return parseInt(miItemBonuses[sid])||0; });
+  active.forEach(function(sid) {
+    var val = parseInt(miItemBonuses[sid]);
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid rgba(201,168,76,0.07);';
+    row.innerHTML =
+      '<span style="flex:1;font-size:14px;color:#f0e6c8;">' + _miBonusNames[sid] + '</span>' +
+      '<button data-dir="-1" data-sid="'+sid+'" style="width:28px;height:28px;border-radius:50%;border:1px solid rgba(201,168,76,0.2);background:rgba(255,255,255,0.05);color:#f0e6c8;font-size:16px;display:flex;align-items:center;justify-content:center;">−</button>' +
+      '<span id="mibonus_'+sid+'" style="width:34px;text-align:center;font-size:14px;font-weight:bold;color:var(--green-bright);">'+(val>0?'+':'')+val+'</span>' +
+      '<button data-dir="1" data-sid="'+sid+'" style="width:28px;height:28px;border-radius:50%;border:1px solid rgba(201,168,76,0.2);background:rgba(255,255,255,0.05);color:#f0e6c8;font-size:16px;display:flex;align-items:center;justify-content:center;">+</button>' +
+      '<button data-del="'+sid+'" style="width:28px;height:28px;border-radius:50%;border:1px solid rgba(180,60,60,0.3);background:rgba(180,60,60,0.1);color:#e07070;font-size:14px;display:flex;align-items:center;justify-content:center;">✕</button>';
+    row.addEventListener('click', function(e) {
+      var b = e.target.closest('[data-dir]');
+      if (b) { adjMiBonus(b.getAttribute('data-sid'), parseInt(b.getAttribute('data-dir'))); }
+      var d = e.target.closest('[data-del]');
+      if (d) { delMiBonus(d.getAttribute('data-del')); }
+    });
+    panel.appendChild(row);
+  });
+
+  // Add bonus row
+  var unused = _miBonusIds.filter(function(sid){ return !(parseInt(miItemBonuses[sid])||0); });
+  var addRow = document.createElement('div');
+  addRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:6px 4px;';
+  addRow.innerHTML = '<span style="font-size:13px;color:#a08c60;letter-spacing:1px;">Boni</span>';
+  if (unused.length > 0) {
+    var addBtn = document.createElement('button');
+    addBtn.textContent = '+';
+    addBtn.style.cssText = 'width:28px;height:28px;border-radius:50%;border:1px solid rgba(201,168,76,0.25);background:rgba(201,168,76,0.08);color:var(--gold);font-size:20px;display:flex;align-items:center;justify-content:center;line-height:1;';
+    addBtn.addEventListener('click', function() { showMiBonusWheel(); });
+    addRow.appendChild(addBtn);
   }
+  panel.appendChild(addRow);
+}
+
+function showMiBonusWheel() {
+  var panel = document.getElementById('miBonusPanel');
+  if (!panel) return;
+  var existing = document.getElementById('miBonusWheel');
+  if (existing) { existing.remove(); return; }
+  var unused = _miBonusIds.filter(function(sid){ return !(parseInt(miItemBonuses[sid])||0); });
+  if (unused.length === 0) return;
+
+  var wheel = document.createElement('div');
+  wheel.id = 'miBonusWheel';
+  wheel.style.cssText = 'background:rgba(15,10,4,0.98);border:1px solid rgba(201,168,76,0.3);border-radius:12px;padding:14px;margin-bottom:8px;';
+
+  // Attr selector
+  var attrLbl = document.createElement('div');
+  attrLbl.style.cssText = 'font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#a08c60;margin-bottom:8px;';
+  attrLbl.textContent = 'Attribut';
+  wheel.appendChild(attrLbl);
+
+  var attrSel = document.createElement('select');
+  attrSel.style.cssText = 'width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(201,168,76,0.2);border-radius:8px;color:#f0e6c8;font-size:15px;padding:8px;outline:none;font-family:Georgia,serif;margin-bottom:12px;';
+  unused.forEach(function(sid) {
+    var o = document.createElement('option');
+    o.value = sid; o.textContent = _miBonusNames[sid];
+    attrSel.appendChild(o);
+  });
+  wheel.appendChild(attrSel);
+
+  // Value selector
+  var valLbl = document.createElement('div');
+  valLbl.style.cssText = 'font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#a08c60;margin-bottom:8px;';
+  valLbl.textContent = 'Bonus';
+  wheel.appendChild(valLbl);
+
+  var valRow = document.createElement('div');
+  valRow.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:14px;';
+  var minusB = document.createElement('button');
+  minusB.textContent = '−';
+  minusB.style.cssText = 'width:36px;height:36px;border-radius:50%;border:1px solid rgba(201,168,76,0.2);background:rgba(255,255,255,0.05);color:#f0e6c8;font-size:20px;display:flex;align-items:center;justify-content:center;';
+  var valDisp = document.createElement('span');
+  valDisp.textContent = '+1';
+  valDisp.style.cssText = 'flex:1;text-align:center;font-size:24px;font-weight:bold;color:var(--gold);';
+  var plusB = document.createElement('button');
+  plusB.textContent = '+';
+  plusB.style.cssText = 'width:36px;height:36px;border-radius:50%;border:1px solid rgba(201,168,76,0.2);background:rgba(255,255,255,0.05);color:#f0e6c8;font-size:20px;display:flex;align-items:center;justify-content:center;';
+  var wVal = 1;
+  minusB.addEventListener('click', function(){ if(wVal>-10)wVal--; valDisp.textContent=(wVal>0?'+':'')+wVal; });
+  plusB.addEventListener('click',  function(){ if(wVal<10)wVal++;  valDisp.textContent=(wVal>0?'+':'')+wVal; });
+  valRow.appendChild(minusB); valRow.appendChild(valDisp); valRow.appendChild(plusB);
+  wheel.appendChild(valRow);
+
+  var confirmB = document.createElement('button');
+  confirmB.textContent = '✓ Hinzufügen';
+  confirmB.style.cssText = 'width:100%;padding:10px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.3);border-radius:10px;color:var(--gold);font-size:14px;font-family:Georgia,serif;';
+  confirmB.addEventListener('click', function() {
+    var sid = attrSel.value;
+    miItemBonuses[sid] = wVal;
+    wheel.remove();
+    buildMiBonusPanel();
+  });
+  wheel.appendChild(confirmB);
+
+  // Insert before add row (last child)
+  panel.insertBefore(wheel, panel.lastChild);
+}
+
+function adjMiBonus(sid, dir) {
+  var cur = parseInt(miItemBonuses[sid]) || 0;
+  var nv = cur + dir;
+  if (nv === 0) { delMiBonus(sid); return; }
+  miItemBonuses[sid] = nv;
+  var sp = document.getElementById('mibonus_' + sid);
+  if (sp) sp.textContent = (nv > 0 ? '+' : '') + nv;
+}
+
+function delMiBonus(sid) {
+  delete miItemBonuses[sid];
+  buildMiBonusPanel();
 }
 
 // Spieler-Zuweisung toggeln
@@ -3166,7 +3292,8 @@ function saveMasterItem() {
 
   var data = {
     name: name, desc: desc, qty: qty,
-    magic: miIsMagic, equipped: miIsEquipped,
+    magic: miIsMagic,
+    bonuses: miItemBonuses,
     assignedTo: assignedTo,
     createdAt: it.createdAt || Date.now(),
     updatedAt: Date.now()
@@ -3245,7 +3372,9 @@ function assignItemToPlayers(itemId, itemData) {
             qty: itemData.qty || 1,
             notes: itemData.desc || '',
             magic: itemData.magic || false,
-            equipped: itemData.equipped || false,
+            equipped: false,
+            bonuses: itemData.bonuses || {},
+            rkBonus: (itemData.bonuses && itemData.bonuses['statRK']) ? parseInt(itemData.bonuses['statRK']) : 0,
             masterItemId: itemId
           };
           if (existingIdx >= 0) {
