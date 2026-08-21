@@ -504,10 +504,11 @@ body.master-mode { padding-top: 58px; }
 </div>
 
 
+<!-- Toast außerhalb appRoot damit er auch im Master-Modus funktioniert -->
+<div id="toast"></div>
+
 <!-- APP ROOT (alles einwickeln für Login-Gate) -->
 <div id="appRoot" style="display:none;">
-
-<div id="toast"></div>
 
 <!-- SPELL DETAIL MODAL -->
 <div class="modal-overlay" id="spellModal" onclick="closeSpellModal(event)">
@@ -3157,11 +3158,15 @@ function saveMasterItem() {
   if (fbDb) {
     if (idx >= 0 && masterItems[idx]._id) {
       // Update
-      fbDb.collection('masterItems').doc(masterItems[idx]._id).set(data).then(function() {
+      var itemId = masterItems[idx]._id;
+      fbDb.collection('masterItems').doc(itemId).set(data).then(function() {
         // Zuweisen an Spieler
-        assignItemToPlayers(masterItems[idx]._id, data);
+        assignItemToPlayers(itemId, data);
         toast('Gegenstand gespeichert');
         closeMasterItemModal();
+      }).catch(function(e) {
+        console.error('Firestore Fehler beim Speichern:', e);
+        toast('Fehler beim Speichern: ' + (e.message || e.code || 'unbekannt'));
       });
     } else {
       // Neu
@@ -3170,6 +3175,9 @@ function saveMasterItem() {
         toast('Gegenstand erstellt');
         window._tempMiAssigned = [];
         closeMasterItemModal();
+      }).catch(function(e) {
+        console.error('Firestore Fehler beim Erstellen:', e);
+        toast('Fehler beim Erstellen: ' + (e.message || e.code || 'unbekannt'));
       });
     }
   } else {
@@ -3259,6 +3267,9 @@ function deleteMasterItem() {
     fbDb.collection('masterItems').doc(it._id).delete().then(function() {
       toast('Gegenstand gelöscht');
       closeMasterItemModal();
+    }).catch(function(e) {
+      console.error('Firestore Fehler beim Löschen:', e);
+      toast('Fehler beim Löschen: ' + (e.message || e.code || 'unbekannt'));
     });
   } else {
     masterItems.splice(idx, 1);
