@@ -2995,9 +2995,11 @@ function switchMasterTab(tab) {
 }
 
 // Master-Items aus Firestore laden
+var _masterItemsListener = null;
 function loadMasterItems() {
   if (!fbDb) return;
-  fbDb.collection('masterItems').orderBy('createdAt','asc').onSnapshot(function(snap) {
+  if (_masterItemsListener) { try { _masterItemsListener(); } catch(e){} }
+  _masterItemsListener = fbDb.collection('masterItems').orderBy('createdAt','asc').onSnapshot(function(snap) {
     masterItems = [];
     snap.forEach(function(doc) {
       var d = doc.data();
@@ -3006,8 +3008,17 @@ function loadMasterItems() {
     });
     buildMasterItemList();
   }, function(err) {
-    // Fallback: lokale Liste
-    buildMasterItemList();
+    console.warn('masterItems Listener Fehler:', err);
+    // Einmalig per get() nachladen als Fallback
+    fbDb.collection('masterItems').orderBy('createdAt','asc').get().then(function(snap) {
+      masterItems = [];
+      snap.forEach(function(doc) {
+        var d = doc.data();
+        d._id = doc.id;
+        masterItems.push(d);
+      });
+      buildMasterItemList();
+    }).catch(function() { buildMasterItemList(); });
   });
 }
 
@@ -3170,6 +3181,7 @@ function saveMasterItem() {
         assignItemToPlayers(itemId, data);
         toast('Gegenstand gespeichert');
         closeMasterItemModal();
+        loadMasterItems();
       }).catch(function(e) {
         console.error('Firestore Fehler beim Speichern:', e);
         toast('Fehler beim Speichern: ' + (e.message || e.code || 'unbekannt'));
@@ -3181,6 +3193,8 @@ function saveMasterItem() {
         toast('Gegenstand erstellt');
         window._tempMiAssigned = [];
         closeMasterItemModal();
+        // Listener neu starten falls er zuvor abgebrochen war
+        loadMasterItems();
       }).catch(function(e) {
         console.error('Firestore Fehler beim Erstellen:', e);
         toast('Fehler beim Erstellen: ' + (e.message || e.code || 'unbekannt'));
