@@ -874,8 +874,6 @@ var _loginAttempted = false;
 var hp=23,temp=0,insp=false,curPage=0,slotEdit=false;
 var concSpell='';
 var concWarningEnabled=true;
-var concWarningEnabled=true;
-var concWarningEnabled=true;
 var coins={KM:12,SM:0,EM:0,GM:87,PM:0};
 var coinTypes=[
   {key:'KM',label:'Kupfer',cls:'kp',color:'#b87333'},
@@ -1944,7 +1942,6 @@ function quickToggleEquip(i){
 }
 
 function toggleItemEquipped(toggle){
-  updateAllStatDisplays();
   if(activeItemIdx<0) return;
   var newVal=!items[activeItemIdx].equipped;
   items[activeItemIdx].equipped=newVal;
@@ -1952,6 +1949,7 @@ function toggleItemEquipped(toggle){
   var dot=toggle.querySelector('div');
   dot.style.background=newVal?'#c9a84c':'rgba(255,255,255,0.4)';
   dot.style.right=newVal?'2px':''; dot.style.left=newVal?'':'2px';
+  updateAllStatDisplays();
   buildItems(); autoSave();
 }
 
@@ -2398,16 +2396,19 @@ function gather(){
   return {
     charName:v('charName'),charSub:v('charSub'),
     statRK:v('statRK'),statINI:v('statINI'),statBEW:v('statBEW'),
-    hp:hp,temp:temp,insp:insp,
+    hp:hp,temp:temp,tempHp:temp,insp:insp,
     maxHp:v('maxHp'),profBonus:v('profBonus'),passPerc:v('passPerc'),
     aSTAm:v('aSTAm'),aSTAv:v('aSTAv'),aGESm:v('aGESm'),aGESv:v('aGESv'),
     aKONm:v('aKONm'),aKONv:v('aKONv'),aINTm:v('aINTm'),aINTv:v('aINTv'),
     aWEIm:v('aWEIm'),aWEIv:v('aWEIv'),aCHAm:v('aCHAm'),aCHAv:v('aCHAv'),
     saves:Array.from(document.querySelectorAll('#savesGrid .tile')).map(function(t){ return{active:t.classList.contains('active'),val:t.querySelector('.editable').value}; }),
-    deaths:{
-      s:Array.from(document.querySelectorAll('.d-tile')).slice(0,3).map(function(b){return b.classList.contains('s-active');}),
-      f:Array.from(document.querySelectorAll('.d-tile')).slice(3,6).map(function(b){return b.classList.contains('f-active');})
-    },
+    deaths:(function(){
+      var s=Array.from(document.querySelectorAll('.d-tile')).slice(0,3).map(function(b){return b.classList.contains('s-active');});
+      var f=Array.from(document.querySelectorAll('.d-tile')).slice(3,6).map(function(b){return b.classList.contains('f-active');});
+      return {s:s,f:f};
+    })(),
+    deathSaveSucc:Array.from(document.querySelectorAll('.d-tile')).slice(0,3).filter(function(b){return b.classList.contains('s-active');}).length,
+    deathSaveFail:Array.from(document.querySelectorAll('.d-tile')).slice(3,6).filter(function(b){return b.classList.contains('f-active');}).length,
     exhaustion:exhaustion,hdUsed:hdUsed.slice(),hdType:v('hdType'),exhTexts:exhTexts.slice(),
     skills:skills.map(function(s){return{name:s.name,attr:s.attr,val:s.val,p:s.p};}),
     attacks:attacks.map(function(a){return{name:a.name,bonus:a.bonus,dmg:a.dmg,type:a.type,range:a.range,notes:a.notes||'',magic:a.magic||0,magicLabel:a.magicLabel||'',attr:a.attr||'',bonuses:a.bonuses||{},equipped:a.equipped||false};}),
@@ -2430,7 +2431,7 @@ function applyData(d){
   function s(id,val){ var e=document.getElementById(id); if(e&&val!=null) e.value=val; }
   s('charName',d.charName);s('charSub',d.charSub);
   s('statRK',d.statRK);s('statINI',d.statINI);s('statBEW',d.statBEW);
-  hp=d.hp||23;temp=d.temp||0;insp=d.insp||false;
+  hp=(d.hp!=null&&d.hp!=='')?d.hp:23;temp=d.temp||0;insp=d.insp||false;
   s('maxHp',d.maxHp);s('profBonus',d.profBonus);s('passPerc',d.passPerc);
   s('aSTAm',d.aSTAm);s('aSTAv',d.aSTAv);s('aGESm',d.aGESm);s('aGESv',d.aGESv);
   s('aKONm',d.aKONm);s('aKONv',d.aKONv);s('aINTm',d.aINTm);s('aINTv',d.aINTv);
@@ -2453,8 +2454,6 @@ function applyData(d){
   s('classFeatures',d.classFeatures);s('noteBG',d.noteBG);s('noteLang',d.noteLang);s('noteSession',d.noteSession);
   if(d.concSpell!==undefined) concSpell=d.concSpell||'';
   if(d.concWarningEnabled!==undefined){ concWarningEnabled=d.concWarningEnabled; var b=document.getElementById('concWarnToggle'); if(b){ b.textContent=concWarningEnabled?'AN':'AUS'; b.style.background=concWarningEnabled?'rgba(201,168,76,0.5)':'rgba(255,255,255,0.08)'; b.style.color=concWarningEnabled?'#0d0a07':'#a08c60'; } }
-  if(d.concWarningEnabled!==undefined) concWarningEnabled=d.concWarningEnabled;
-  if(d.concWarningEnabled!==undefined) concWarningEnabled=d.concWarningEnabled;
   if(d.characters){ characters=d.characters; activeCharIdx=d.activeCharIdx||0; }
   if(d.restConfig){ restConfig=d.restConfig; }
   if(d.fontSizes){ d.fontSizes.forEach(function(s,i){ fontSizes[i]=s; }); applyAllFontSizes(); }
@@ -2688,6 +2687,8 @@ var masterPlayers = {};       // uid → { name, uid, liveData }
 var masterSelectedUids = [];  // Reihenfolge der getippten Pillen
 var masterMenuOpen = false;
 var masterLiveListeners = {}; // uid → unsubscribe fn
+var masterEditingPlayer = false; // true wenn DM einen Spieler-Charakter bearbeitet
+var masterActiveUid = null;      // uid des aktuell bearbeiteten Spielers
 
 function initMasterMode() {
   document.getElementById('masterPage').style.display = 'flex';
@@ -2818,7 +2819,7 @@ function buildCardHTML(uid) {
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">' +
       '<div>' +
         '<div style="font-size:15px;color:var(--gold);letter-spacing:1px;">' + escHtml(p.name) + '</div>' +
-        '<div style="font-size:11px;color:var(--text-dim);letter-spacing:1px;margin-top:2px;">' + escHtml(d.charClass || '') + (d.charLevel ? ' · Lvl ' + d.charLevel : '') + '</div>' +
+        '<div style="font-size:11px;color:var(--text-dim);letter-spacing:1px;margin-top:2px;">' + escHtml(d.charSub || '') + '</div>' +
       '</div>' +
       '<button onclick="openMasterFullView(\'' + uid + '\')" style="background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.25);border-radius:8px;color:var(--text-dim);font-size:11px;padding:5px 10px;cursor:pointer;letter-spacing:1px;">Bogen →</button>' +
     '</div>' +
@@ -2925,25 +2926,32 @@ function renderReadOnlySheet(d) {
   function mod(v) { var m = Math.floor(((parseInt(v)||10)-10)/2); return (m>=0?'+':'')+m; }
   var html = '';
 
+  // charSub enthält "Klasse · Level · Rasse" als Freitext
   html += '<div class="card"><div style="font-size:18px;color:var(--gold);margin-bottom:4px;">' + escHtml(d.charName||'—') + '</div>';
-  html += '<div style="font-size:12px;color:var(--text-dim);letter-spacing:1px;">' + escHtml((d.charRace||'') + (d.charClass ? ' · ' + d.charClass : '') + (d.charLevel ? ' Lvl ' + d.charLevel : '')) + '</div></div>';
+  html += '<div style="font-size:12px;color:var(--text-dim);letter-spacing:1px;">' + escHtml(d.charSub||'') + '</div></div>';
 
   html += '<div class="card"><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center;">';
-  [{l:'HP',v:(d.hp||0)+' / '+(d.maxHp||0)},{l:'RK',v:d.ac||'—'},{l:'INIT',v:(parseInt(d.initiative||0)>=0?'+':'')+(d.initiative||0)},{l:'TEMPO',v:(d.speed||0)+' ft'}].forEach(function(x){
+  [{l:'HP',v:(d.hp||0)+' / '+(d.maxHp||0)},{l:'RK',v:d.statRK||'—'},{l:'INIT',v:d.statINI||'—'},{l:'TEMPO',v:d.statBEW||'—'}].forEach(function(x){
     html += '<div style="background:rgba(255,255,255,0.04);border-radius:8px;padding:8px;"><div style="font-size:10px;color:var(--text-dim);letter-spacing:1px;margin-bottom:4px;">'+x.l+'</div><div style="font-size:14px;color:var(--text-main);">'+escHtml(String(x.v))+'</div></div>';
   });
   html += '</div></div>';
 
+  // Attribut-Score-Felder: aSTAv=STR, aGESv=DEX, aKONv=CON, aINTv=INT, aWEIv=WIS, aCHAv=CHA
+  var scoreKeys = ['aSTAv','aGESv','aKONv','aINTv','aWEIv','aCHAv'];
+  // Modifier-Felder: aSTAm=STR, aGESm=DEX, aKONm=KON, aINTm=INT, aWEIm=WIS, aCHAm=CHA
+  var modKeys   = ['aSTAm','aGESm','aKONm','aINTm','aWEIm','aCHAm'];
   html += '<div class="card"><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center;">';
   stats.forEach(function(s,i){
-    var val = d[statKeys[i]] || 10;
-    html += '<div style="background:rgba(255,255,255,0.04);border-radius:8px;padding:8px;"><div style="font-size:10px;color:var(--text-dim);letter-spacing:1px;">'+s+'</div><div style="font-size:20px;color:var(--gold);">'+mod(val)+'</div><div style="font-size:12px;color:var(--text-dim);">'+val+'</div></div>';
+    var score = d[scoreKeys[i]] || 10;
+    var modifier = d[modKeys[i]] || mod(score);
+    html += '<div style="background:rgba(255,255,255,0.04);border-radius:8px;padding:8px;"><div style="font-size:10px;color:var(--text-dim);letter-spacing:1px;">'+s+'</div><div style="font-size:20px;color:var(--gold);">'+escHtml(String(modifier))+'</div><div style="font-size:12px;color:var(--text-dim);">'+escHtml(String(score))+'</div></div>';
   });
   html += '</div></div>';
 
   if (d.attacks && d.attacks.length) {
     html += '<div class="card"><div class="card-title">Angriffe</div>';
-    d.attacks.forEach(function(a){ if (!a||!a.name) return; html += '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:13px;"><span style="color:var(--text-main);">'+escHtml(a.name||'—')+'</span><span style="color:var(--text-dim);">'+escHtml(a.atk||'')+' '+escHtml(a.dmg||'')+'</span></div>'; });
+    // gather() speichert a.bonus (nicht a.atk)
+    d.attacks.forEach(function(a){ if (!a||!a.name) return; html += '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:13px;"><span style="color:var(--text-main);">'+escHtml(a.name||'—')+'</span><span style="color:var(--text-dim);">'+escHtml(a.bonus||'')+' '+escHtml(a.dmg||'')+'</span></div>'; });
     html += '</div>';
   }
   if (d.items && d.items.length) {
