@@ -2821,8 +2821,10 @@ function initPlayerMode() {
       if (!_playerInitialLoadDone) {
         _playerInitialLoadDone = true;
         try {
-          if (d.chars && d.chars.length > 0) {
-            characters = d.chars;
+          var normChars = _normalizeChars(d.chars);
+          var wasCorrupted = d.chars && !Array.isArray(d.chars);
+          if (normChars && normChars.length > 0) {
+            characters = normChars;
             activeCharIdx = typeof d.activeCharIdx === 'number' ? d.activeCharIdx : 0;
             if (activeCharIdx >= characters.length) activeCharIdx = 0;
             applyData(characters[activeCharIdx]);
@@ -2832,6 +2834,19 @@ function initPlayerMode() {
             buildCharSwitcher();
             localSave();
             dbgLog('ok', 'Initial geladen: ' + characters.length + ' Charakter(e) aus Firestore (aktiv: ' + activeCharIdx + ')');
+            if (wasCorrupted) {
+              dbgLog('warn', 'chars-Feld war beschädigt (Map statt Array, durch altes Array-Index-Update) — repariere und schreibe korrekt zurück...');
+              docRef.update({
+                chars: characters,
+                activeCharIdx: activeCharIdx,
+                _lastEditedBy: fbUser.uid,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+              }).then(function() {
+                dbgLog('ok', 'Reparatur erfolgreich — chars ist wieder ein echtes Array.');
+              }).catch(function(e) {
+                dbgLog('err', 'Reparatur fehlgeschlagen', e);
+              });
+            }
           } else {
             // Dokument existiert aber hat kein chars-Array (altes Format)
             // Versuche applyData mit dem Dokument selbst, dann neu speichern
@@ -2871,11 +2886,12 @@ function initPlayerMode() {
       // die Daten von einem ANDEREN Gerät kommen und übernommen werden müssen)
       try {
         var idx = typeof d.activeCharIdx === 'number' ? d.activeCharIdx : 0;
-        var incomingChars = d.chars || [d];
+        var incomingChars = _normalizeChars(d.chars) || [d];
         var incomingChar = incomingChars[idx];
         var localChar = _fbLastSaved[idx];
         var sameAsLocal = JSON.stringify(incomingChar) === JSON.stringify(localChar);
 
+        var wasCorrupted = d.chars && !Array.isArray(d.chars);
         if (sameAsLocal) {
           dbgLog('info', 'Update erhalten (Charakter ' + idx + ') — identisch mit lokalem Stand, wird ignoriert (vermutlich Echo der eigenen Speicherung).');
         } else if (d._lastEditedBy && d._lastEditedBy !== fbUser.uid) {
@@ -2897,6 +2913,19 @@ function initPlayerMode() {
           buildCharSwitcher();
           localSave();
           dbgLog('warn', 'Update vom selben Account, aber abweichender Inhalt (vermutlich anderes Gerät/Tab) — wurde übernommen (Charakter ' + idx + ').');
+        }
+        if (wasCorrupted && !sameAsLocal) {
+          dbgLog('warn', 'chars-Feld war beschädigt (Map statt Array) — repariere und schreibe korrekt zurück...');
+          docRef.update({
+            chars: characters,
+            activeCharIdx: activeCharIdx,
+            _lastEditedBy: fbUser.uid,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          }).then(function() {
+            dbgLog('ok', 'Reparatur erfolgreich — chars ist wieder ein echtes Array.');
+          }).catch(function(e) {
+            dbgLog('err', 'Reparatur fehlgeschlagen', e);
+          });
         }
       } catch(e) {
         dbgLog('err', 'Fehler beim Verarbeiten eines Live-Updates', e);
@@ -3609,7 +3638,7 @@ function assignItemToPlayers(itemId, itemData) {
       fbDb.collection('characters').doc(playerId).get().then(function(doc) {
         if (!doc.exists) return;
         var d = doc.data();
-        var chars = d.chars || [d];
+        var chars = _normalizeChars(d.chars) || [d];
         var char = chars[0] || {};
         var items = char.items || [];
 
@@ -3643,8 +3672,8 @@ function assignItemToPlayers(itemId, itemData) {
         }
 
         // Zurückschreiben
-        if (d.chars && d.chars[0]) {
-          var updatedChars = d.chars.slice();
+        if (chars.length > 0 && chars[0]) {
+          var updatedChars = chars.slice();
           updatedChars[0] = Object.assign({}, updatedChars[0], { items: items });
           fbDb.collection('characters').doc(playerId).update({ chars: updatedChars });
         } else {
@@ -3693,20 +3722,19 @@ var _fbLastSaved = {}; // charIdx → flattened field snapshot
 
 // Flacht einen Charakter-Objekt zu Firestore-Update-Pfaden ab
 // z.B. { hp: 23, skills: [...] } → { "chars.0.hp": 23, "chars.0.skills": [...] }
-function _flattenDiff(charIdx, newData, oldData) {
-  var update = {};
-  var prefix = 'chars.' + charIdx + '.';
-  Object.keys(newData).forEach(function(key) {
-    var newVal = newData[key];
-    var oldVal = oldData ? oldData[key] : undefined;
-    // Arrays und Objekte immer als JSON-String vergleichen
-    var newStr = JSON.stringify(newVal);
-    var oldStr = JSON.stringify(oldVal);
-    if (newStr !== oldStr) {
-      update[prefix + key] = newVal;
-    }
-  });
-  return update;
+function _hasChanges(newData, oldData) {
+  return JSON.stringify(newData) !== JSON.stringify(oldData);
+}
+
+// Wandelt ein durch fehlerhafte Array-Index-Updates "kaputtes" chars-Feld
+// (Firestore-Map mit Zahlen-Keys statt echtem Array) zurück in ein echtes Array.
+function _normalizeChars(chars) {
+  if (Array.isArray(chars)) return chars;
+  if (chars && typeof chars === 'object') {
+    var keys = Object.keys(chars).filter(function(k){ return /^\d+$/.test(k); }).sort(function(a,b){ return a - b; });
+    if (keys.length > 0) return keys.map(function(k){ return chars[k]; });
+  }
+  return null;
 }
 
 function fbSave() {
@@ -3745,20 +3773,22 @@ function fbSave() {
       return;
     }
 
-    // Diff berechnen
-    var diff = _flattenDiff(charIdx, snap, _fbLastSaved[charIdx]);
-
-    if (Object.keys(diff).length === 0) {
+    // Diff berechnen (nur zur Änderungserkennung — NICHT als Array-Index-Feldpfade senden!
+    // Firestore unterstützt kein Update einzelner Array-Elemente über Punkt-Pfade wie
+    // "chars.0.saves" — das wandelt das Array sonst dauerhaft in eine kaputte Map um.)
+    if (!_hasChanges(snap, _fbLastSaved[charIdx])) {
       dbgLog('info', 'fbSave: keine Änderungen erkannt (Charakter ' + charIdx + ') — nichts zu speichern.');
       return; // Nichts geändert
     }
 
-    // Metafelder immer mitschicken
-    diff['activeCharIdx']  = charIdx;
-    diff['_lastEditedBy']  = fbUser.uid;
-    diff['updatedAt']      = firebase.firestore.FieldValue.serverTimestamp();
+    var diff = {
+      chars: characters,
+      activeCharIdx: charIdx,
+      _lastEditedBy: fbUser.uid,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
 
-    dbgLog('info', 'fbSave: update() für characters/' + targetUid + ' — Felder: ' + Object.keys(diff).join(', '));
+    dbgLog('info', 'fbSave: update() für characters/' + targetUid + ' — Charakter ' + charIdx + ' geändert (ganzes chars-Array wird geschrieben)');
 
     // update() benutzen – bei Fehler (Dokument existiert nicht) auf set() zurückfallen
     docRef.update(diff)
