@@ -2871,8 +2871,10 @@ function openMasterFullView(uid) {
     document.getElementById('masterPage').style.display = 'none';
     document.getElementById('appRoot').style.display = 'block';
 
-    // Alle Inputs & Buttons deaktivieren
+    // Alle Inputs & Buttons deaktivieren (außer den Tab-Buttons Leben/Attribute/Extras,
+    // die sollen für den Master weiterhin umschaltbar bleiben – reine Lese-Navigation)
     document.getElementById('appRoot').querySelectorAll('input, textarea, button, select').forEach(function(el) {
+      if (el.id === 'ctab0' || el.id === 'ctab1' || el.id === 'ctab2') return;
       el.setAttribute('disabled', 'true');
       el.style.pointerEvents = 'none';
       el.style.opacity = '0.85';
