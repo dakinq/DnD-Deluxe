@@ -2625,28 +2625,23 @@ fbAuth.onAuthStateChanged(function(user) {
 // ── PLAYER MODE ──
 // ════════════════════════════════════════════════
 function initPlayerMode() {
+  // Sicherstellen dass Master-UI nicht sichtbar ist
+  var mp = document.getElementById('masterPage');
+  if (mp) mp.style.display = 'none';
   // Echtzeit-Listener auf eigenen Charakterbogen
   var docRef = fbDb.collection('characters').doc(fbUser.uid);
+  var _playerInitialLoadDone = false;
   var unsub = docRef.onSnapshot(function(doc) {
     if (doc.exists) {
       var d = doc.data();
-      // Nur anwenden wenn Änderung vom Master kam (nicht eigene Speicherung)
-      if (d._lastEditedBy && d._lastEditedBy !== fbUser.uid) {
-        try {
-          characters = d.chars || [d];
-          activeCharIdx = 0;
-          applyData(characters[0]);
-          buildCharSwitcher();
-          toast('📋 Master hat deinen Bogen aktualisiert');
-        } catch(e) {}
-      } else if (!d._lastEditedBy) {
-        // Erstmaliges Laden — _fbLastSaved initialisieren
+      // Beim ersten Laden immer die Daten anwenden (unabhängig von _lastEditedBy)
+      if (!_playerInitialLoadDone) {
+        _playerInitialLoadDone = true;
         try {
           if (d.chars && d.chars.length > 0) {
             characters = d.chars;
-            activeCharIdx = 0;
-            applyData(characters[0]);
-            // Basis-Stand für Diff merken
+            activeCharIdx = d.activeCharIdx || 0;
+            applyData(characters[activeCharIdx]);
             characters.forEach(function(c, i) {
               _fbLastSaved[i] = JSON.parse(JSON.stringify(c));
             });
@@ -2655,7 +2650,18 @@ function initPlayerMode() {
             _fbLastSaved[0] = JSON.parse(JSON.stringify(d));
           }
           buildCharSwitcher();
-          localSave(); // localStorage synchronisieren
+          localSave();
+        } catch(e) { console.warn('Initialladen Fehler:', e); }
+        return;
+      }
+      // Folge-Updates: Nur anwenden wenn Änderung vom Master kam
+      if (d._lastEditedBy && d._lastEditedBy !== fbUser.uid) {
+        try {
+          characters = d.chars || [d];
+          activeCharIdx = 0;
+          applyData(characters[0]);
+          buildCharSwitcher();
+          toast('📋 Master hat deinen Bogen aktualisiert');
         } catch(e) {}
       }
     } else {
