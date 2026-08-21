@@ -2397,27 +2397,33 @@ function newChar(){
   applyData(blank);
   buildCharSwitcher();
   // Neuen Charakter sofort vollständig in Firestore schreiben (kein Debounce)
+  // gather() NACH applyData() aufrufen, damit das DOM korrekte Werte hat
   if(fbUser && fbDb){
     var newIdx = activeCharIdx;
-    var snap = gather();
-    characters[newIdx] = snap;
-    var full = {
-      activeCharIdx: newIdx,
-      _lastEditedBy: fbUser.uid,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-      chars: characters.map(function(c){ return c; })
-    };
-    fbDb.collection('characters').doc(fbUser.uid).set(full, { merge: true })
-      .then(function(){
-        _fbLastSaved[newIdx] = JSON.parse(JSON.stringify(snap));
-        localSave();
-        toast('Neuer Charakter erstellt');
-      })
-      .catch(function(e){
-        console.warn('Fehler beim Speichern des neuen Charakters:', e);
-        localSave();
-        toast('Neuer Charakter erstellt (nur lokal)');
-      });
+    // Kleines Timeout damit applyData() das DOM vollständig rendern kann
+    setTimeout(function(){
+      var snap = gather();
+      characters[newIdx] = snap;
+      // _fbLastSaved zurücksetzen damit fbSave() ein vollständiges set() macht
+      delete _fbLastSaved[newIdx];
+      var full = {
+        activeCharIdx: newIdx,
+        _lastEditedBy: fbUser.uid,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        chars: characters.map(function(c){ return c; })
+      };
+      fbDb.collection('characters').doc(fbUser.uid).set(full, { merge: true })
+        .then(function(){
+          _fbLastSaved[newIdx] = JSON.parse(JSON.stringify(snap));
+          localSave();
+          toast('Neuer Charakter erstellt');
+        })
+        .catch(function(e){
+          console.warn('Fehler beim Speichern des neuen Charakters:', e);
+          localSave();
+          toast('Neuer Charakter erstellt (nur lokal)');
+        });
+    }, 100);
   } else {
     localSave();
     toast('Neuer Charakter erstellt');
@@ -2679,18 +2685,46 @@ function initPlayerMode() {
         try {
           if (d.chars && d.chars.length > 0) {
             characters = d.chars;
-            activeCharIdx = d.activeCharIdx || 0;
+            activeCharIdx = typeof d.activeCharIdx === 'number' ? d.activeCharIdx : 0;
+            if (activeCharIdx >= characters.length) activeCharIdx = 0;
             applyData(characters[activeCharIdx]);
             characters.forEach(function(c, i) {
               _fbLastSaved[i] = JSON.parse(JSON.stringify(c));
             });
+            buildCharSwitcher();
+            localSave();
+            console.log('Firestore: ' + characters.length + ' Charakter(e) geladen');
           } else {
+            // Dokument existiert aber hat kein chars-Array (altes Format)
+            // Versuche applyData mit dem Dokument selbst, dann neu speichern
+            console.warn('Firestore: Dokument hat kein chars-Array, migriere...');
             applyData(d);
-            _fbLastSaved[0] = JSON.parse(JSON.stringify(d));
+            // Sofort als neues Format hochladen
+            setTimeout(function() {
+              var snap = gather();
+              characters = [snap];
+              activeCharIdx = 0;
+              _fbLastSaved = {}; // Reset damit set() benutzt wird
+              var full = {
+                activeCharIdx: 0,
+                _lastEditedBy: fbUser.uid,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                chars: [snap]
+              };
+              docRef.set(full, { merge: true })
+                .then(function() {
+                  _fbLastSaved[0] = JSON.parse(JSON.stringify(snap));
+                  buildCharSwitcher();
+                  localSave();
+                  console.log('Firestore: Migration zu chars-Array erfolgreich');
+                })
+                .catch(function(e) { console.warn('Migration Fehler:', e); localLoad(); });
+            }, 200);
           }
-          buildCharSwitcher();
-          localSave();
-        } catch(e) { console.warn('Initialladen Fehler:', e); }
+        } catch(e) {
+          console.warn('Initialladen Fehler:', e);
+          localLoad();
+        }
         return;
       }
       // Folge-Updates: Nur anwenden wenn Änderung vom Master kam
@@ -2704,8 +2738,19 @@ function initPlayerMode() {
         } catch(e) {}
       }
     } else {
-      // Kein Cloud-Save → localStorage laden, beim nächsten autoSave hochladen
-      localLoad();
+      // Kein Cloud-Save → localStorage laden und sofort zu Firestore hochladen
+      console.log('Firestore: Kein Dokument vorhanden, lade aus localStorage...');
+      var loaded = localLoad();
+      if (!loaded) {
+        // Auch kein localStorage → Standard-Daten hochladen
+        console.log('Firestore: Kein localStorage, speichere Standard-Daten...');
+      }
+      _playerInitialLoadDone = true;
+      // Sofort in Firestore anlegen
+      setTimeout(function() {
+        _fbLastSaved = {}; // sicherstellen dass set() benutzt wird
+        fbSave();
+      }, 300);
     }
   }, function(e) {
     console.warn('Echtzeit-Listener Fehler:', e);
@@ -3509,43 +3554,70 @@ function fbSave() {
     var targetUid = (masterEditingPlayer && masterActiveUid) ? masterActiveUid : fbUser.uid;
     var charIdx   = activeCharIdx;
 
+    var docRef = fbDb.collection('characters').doc(targetUid);
+
+    // Beim ersten Speichern (kein _fbLastSaved vorhanden) immer vollständiges set() benutzen
+    if (!_fbLastSaved[charIdx]) {
+      var full = {
+        activeCharIdx: charIdx,
+        _lastEditedBy: fbUser.uid,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        chars: characters.map(function(c){ return c; })
+      };
+      docRef.set(full, { merge: true })
+        .then(function() {
+          _fbLastSaved[charIdx] = JSON.parse(JSON.stringify(snap));
+          localSave();
+          console.log('Firestore: Erstmaliges Speichern erfolgreich (Charakter ' + charIdx + ')');
+        })
+        .catch(function(e) {
+          console.warn('Firestore set() Fehler:', e);
+          localSave();
+        });
+      return;
+    }
+
     // Diff berechnen
     var diff = _flattenDiff(charIdx, snap, _fbLastSaved[charIdx]);
 
     if (Object.keys(diff).length === 0) return; // Nichts geändert
 
-    // Metafelder immer mitschicken (minimale Overhead)
+    // Metafelder immer mitschicken
     diff['activeCharIdx']  = charIdx;
     diff['_lastEditedBy']  = fbUser.uid;
     diff['updatedAt']      = firebase.firestore.FieldValue.serverTimestamp();
 
-    var docRef = fbDb.collection('characters').doc(targetUid);
-
-    // Erstes Mal: set() mit merge, danach update()
-    var savePromise = _fbLastSaved[charIdx]
-      ? docRef.update(diff)
-      : docRef.set(
-          (function() {
-            var full = { activeCharIdx: charIdx, _lastEditedBy: fbUser.uid,
-                         updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
-            full['chars'] = characters.map(function(c){ return c; });
-            return full;
-          })(),
-          { merge: true }
-        );
-
-    savePromise
+    // update() benutzen – bei Fehler (Dokument existiert nicht) auf set() zurückfallen
+    docRef.update(diff)
       .then(function() {
-        // Lokalen Stand aktualisieren
         _fbLastSaved[charIdx] = JSON.parse(JSON.stringify(snap));
-        localSave(); // localStorage immer aktuell halten
+        localSave();
       })
       .catch(function(e) {
-        console.warn('Firestore Fehler:', e);
-        localSave(); // Fallback
+        console.warn('Firestore update() Fehler, versuche set():', e);
+        // Fallback: vollständiges set() wenn update() fehlschlägt (z.B. Dokument nicht vorhanden)
+        var full = {
+          activeCharIdx: charIdx,
+          _lastEditedBy: fbUser.uid,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          chars: characters.map(function(c){ return c; })
+        };
+        docRef.set(full, { merge: true })
+          .then(function() {
+            _fbLastSaved[charIdx] = JSON.parse(JSON.stringify(snap));
+            localSave();
+            console.log('Firestore: Fallback set() erfolgreich');
+          })
+          .catch(function(e2) {
+            console.warn('Firestore Fehler (auch set() fehlgeschlagen):', e2);
+            localSave();
+          });
       });
 
-  } catch(e) { localSave(); }
+  } catch(e) {
+    console.warn('fbSave() Ausnahme:', e);
+    localSave();
+  }
 }
 
 // In-Memory-Fallback für Umgebungen ohne localStorage (z.B. Claude Artifacts)
