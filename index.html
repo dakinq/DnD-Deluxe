@@ -352,6 +352,22 @@ input, textarea { color:var(--text-main); background:transparent; border:none; o
 /* Wenn Master-Bar sichtbar: App nach unten schieben */
 body.master-mode .nb-bar { bottom: 0; }
 body.master-mode { padding-top: 58px; }
+/* ── SPEICHER-LOG (Debug) ── */
+#dbgLogBtn{position:fixed;right:10px;bottom:10px;z-index:9600;width:34px;height:34px;border-radius:50%;background:rgba(13,10,7,0.85);border:1.5px solid var(--gold-dim);color:var(--gold);font-size:15px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 8px rgba(0,0,0,0.5);opacity:0.55;}
+#dbgLogBtn.err{border-color:#e05050;color:#e05050;opacity:1;box-shadow:0 0 10px rgba(224,80,80,0.5);}
+#dbgLogBadge{position:absolute;top:-4px;right:-4px;background:#e05050;color:#fff;font-size:9px;line-height:1;border-radius:8px;padding:2px 4px;min-width:14px;text-align:center;display:none;}
+#dbgLogPanel{position:fixed;inset:0;z-index:9700;background:rgba(8,6,4,0.92);display:none;flex-direction:column;}
+#dbgLogPanel.open{display:flex;}
+#dbgLogHeader{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid rgba(201,168,76,0.25);}
+#dbgLogHeader h3{color:var(--gold-light);font-size:13px;letter-spacing:2px;text-transform:uppercase;margin:0;}
+#dbgLogHeader div button{background:rgba(201,168,76,0.1);border:1px solid var(--gold-dim);color:var(--gold);font-size:11px;padding:6px 10px;border-radius:6px;margin-left:6px;}
+#dbgLogList{flex:1 1 auto;overflow-y:auto;padding:10px 12px;font-family:Menlo,Consolas,monospace;font-size:11px;line-height:1.5;}
+.dbg-entry{margin-bottom:8px;padding:6px 8px;border-radius:6px;border-left:3px solid var(--gold-dim);background:rgba(255,255,255,0.03);white-space:pre-wrap;word-break:break-word;}
+.dbg-entry.warn{border-left-color:#e8cc7a;}
+.dbg-entry.err{border-left-color:#e05050;background:rgba(224,80,80,0.08);}
+.dbg-entry.ok{border-left-color:#5dba7d;}
+.dbg-time{color:var(--text-dim,#8a8070);margin-right:6px;}
+.dbg-empty{color:var(--text-dim,#8a8070);text-align:center;margin-top:30px;font-size:12px;}
 </style>
 
 </head>
@@ -511,6 +527,19 @@ body.master-mode { padding-top: 58px; }
 
 <!-- Toast außerhalb appRoot damit er auch im Master-Modus funktioniert -->
 <div id="toast"></div>
+
+<!-- ── SPEICHER-LOG (Debug) ── -->
+<button id="dbgLogBtn" onclick="dbgLogOpen()" title="Speicher-Log">🛈<span id="dbgLogBadge"></span></button>
+<div id="dbgLogPanel">
+  <div id="dbgLogHeader">
+    <h3>Speicher-Log</h3>
+    <div>
+      <button onclick="dbgLogClear()">Leeren</button>
+      <button onclick="dbgLogClose()">Schließen ✕</button>
+    </div>
+  </div>
+  <div id="dbgLogList"></div>
+</div>
 
 <!-- APP ROOT (alles einwickeln für Login-Gate) -->
 <div id="appRoot" style="display:none;">
@@ -2523,6 +2552,107 @@ var fbRole = null; // "master" oder "player"
 var fbSaveTimer = null;
 var fbListeners = []; // aktive Echtzeit-Listener
 
+// ════════════════════════════════════════════════
+// ── SPEICHER-LOG (Debug) ──
+// Protokolliert alle Firestore-Speichervorgänge sichtbar in der App,
+// damit sich Speicherprobleme bei Usern auch ohne Browser-Konsole nachvollziehen lassen.
+// ════════════════════════════════════════════════
+var _dbgLog = [];
+var _dbgLogMax = 300;
+var _dbgLogErrCount = 0;
+
+function dbgLog(type, msg, extra) {
+  var entry = {
+    t: new Date(),
+    type: type, // 'info' | 'ok' | 'warn' | 'err'
+    msg: msg,
+    extra: extra !== undefined ? _dbgFmt(extra) : null
+  };
+  _dbgLog.push(entry);
+  if (_dbgLog.length > _dbgLogMax) _dbgLog.shift();
+  if (type === 'err') {
+    _dbgLogErrCount++;
+    console.error('[Speicher-Log] ' + msg, extra || '');
+  } else if (type === 'warn') {
+    console.warn('[Speicher-Log] ' + msg, extra || '');
+  } else {
+    console.log('[Speicher-Log] ' + msg, extra || '');
+  }
+  try { _lsSet('dnd_dbglog', JSON.stringify(_dbgLog.slice(-100).map(function(e){ return {t:e.t.toISOString(), type:e.type, msg:e.msg, extra:e.extra}; }))); } catch(e){}
+  _dbgLogUpdateBadge();
+  if (document.getElementById('dbgLogPanel') && document.getElementById('dbgLogPanel').classList.contains('open')) {
+    dbgLogRender();
+  }
+}
+
+function _dbgFmt(extra) {
+  try {
+    if (extra instanceof Error || (extra && extra.message)) {
+      return (extra.code ? extra.code + ': ' : '') + (extra.message || String(extra));
+    }
+    if (typeof extra === 'object') return JSON.stringify(extra);
+    return String(extra);
+  } catch(e) { return String(extra); }
+}
+
+function _dbgLogUpdateBadge() {
+  var btn = document.getElementById('dbgLogBtn');
+  var badge = document.getElementById('dbgLogBadge');
+  if (!btn || !badge) return;
+  if (_dbgLogErrCount > 0) {
+    btn.classList.add('err');
+    badge.style.display = 'block';
+    badge.textContent = _dbgLogErrCount > 99 ? '99+' : String(_dbgLogErrCount);
+  }
+}
+
+function dbgLogOpen() {
+  document.getElementById('dbgLogPanel').classList.add('open');
+  dbgLogRender();
+}
+function dbgLogClose() {
+  document.getElementById('dbgLogPanel').classList.remove('open');
+}
+function dbgLogClear() {
+  _dbgLog = [];
+  _dbgLogErrCount = 0;
+  var btn = document.getElementById('dbgLogBtn');
+  var badge = document.getElementById('dbgLogBadge');
+  if (btn) btn.classList.remove('err');
+  if (badge) badge.style.display = 'none';
+  try { _lsSet('dnd_dbglog', '[]'); } catch(e){}
+  dbgLogRender();
+}
+function dbgLogRender() {
+  var list = document.getElementById('dbgLogList');
+  if (!list) return;
+  if (_dbgLog.length === 0) {
+    list.innerHTML = '<div class="dbg-empty">Noch keine Einträge.</div>';
+    return;
+  }
+  var html = '';
+  for (var i = _dbgLog.length - 1; i >= 0; i--) {
+    var e = _dbgLog[i];
+    var cls = e.type === 'err' ? 'err' : (e.type === 'warn' ? 'warn' : (e.type === 'ok' ? 'ok' : ''));
+    var time = e.t.toLocaleTimeString('de-DE');
+    html += '<div class="dbg-entry ' + cls + '"><span class="dbg-time">' + time + '</span>' + escHtml(e.msg) + (e.extra ? ('\n' + escHtml(e.extra)) : '') + '</div>';
+  }
+  list.innerHTML = html;
+}
+
+// Beim Start vorherige Log-Einträge wiederherstellen (überlebt Neuladen der Seite)
+(function _dbgLogRestore() {
+  try {
+    var raw = _lsGet('dnd_dbglog');
+    if (raw) {
+      var arr = JSON.parse(raw);
+      _dbgLog = arr.map(function(e){ return { t: new Date(e.t), type: e.type, msg: e.msg, extra: e.extra }; });
+      _dbgLogErrCount = _dbgLog.filter(function(e){ return e.type === 'err'; }).length;
+      _dbgLogUpdateBadge();
+    }
+  } catch(e) {}
+})();
+
 // ── MASTER-UID (einziger Master-Account) ──
 // Wird aus Firestore users/{uid}.role gelesen
 var MASTER_UID = null;
@@ -2640,10 +2770,12 @@ function doLogin() {
 // ── AUTH STATE ──
 fbAuth.onAuthStateChanged(function(user) {
   if (!user) {
+    dbgLog('warn', 'Kein Nutzer angemeldet (ausgeloggt) — Speichern in Firestore ist deaktiviert.');
     showLoginScreen();
     return;
   }
   fbUser = user;
+  dbgLog('ok', 'Angemeldet als ' + (user.email || user.uid) + ' (uid: ' + user.uid + ')');
   // Rolle aus Firestore laden
   // Kein Dokument oder kein role-Feld = automatisch Spieler
   fbDb.collection('users').doc(user.uid).get().then(function(doc) {
@@ -2652,6 +2784,7 @@ fbAuth.onAuthStateChanged(function(user) {
     } else {
       fbRole = 'player';
     }
+    dbgLog('info', 'Rolle geladen: ' + fbRole);
     hideLoginScreen();
     if (fbRole === 'master') {
       initMasterMode();
@@ -2660,11 +2793,16 @@ fbAuth.onAuthStateChanged(function(user) {
     }
   }).catch(function(e) {
     console.warn('Rolle laden fehlgeschlagen:', e);
+    dbgLog('err', 'Rolle konnte nicht geladen werden — Fallback auf "player"', e);
     fbRole = 'player';
     hideLoginScreen();
     initPlayerMode();
   });
 });
+
+// Online/Offline-Status protokollieren, da Speichern bei fehlendem Netz fehlschlägt
+window.addEventListener('offline', function(){ dbgLog('warn', 'Gerät ist offline — Speichern in Firestore wird fehlschlagen, bis die Verbindung zurück ist.'); });
+window.addEventListener('online',  function(){ dbgLog('info', 'Gerät ist wieder online.'); });
 
 // ════════════════════════════════════════════════
 // ── PLAYER MODE ──
@@ -3547,7 +3685,11 @@ function _flattenDiff(charIdx, newData, oldData) {
 }
 
 function fbSave() {
-  if (!fbUser) return;
+  if (!fbUser) {
+    dbgLog('err', 'fbSave() abgebrochen: kein fbUser (nicht angemeldet). Es wird nur lokal gespeichert.');
+    localSave();
+    return;
+  }
   try {
     var snap = gather();
     characters[activeCharIdx] = snap;
@@ -3558,6 +3700,7 @@ function fbSave() {
 
     // Beim ersten Speichern (kein _fbLastSaved vorhanden) immer vollständiges set() benutzen
     if (!_fbLastSaved[charIdx]) {
+      dbgLog('info', 'fbSave: Erstmaliges set() für characters/' + targetUid + ' (Charakter ' + charIdx + ')');
       var full = {
         activeCharIdx: charIdx,
         _lastEditedBy: fbUser.uid,
@@ -3568,10 +3711,10 @@ function fbSave() {
         .then(function() {
           _fbLastSaved[charIdx] = JSON.parse(JSON.stringify(snap));
           localSave();
-          console.log('Firestore: Erstmaliges Speichern erfolgreich (Charakter ' + charIdx + ')');
+          dbgLog('ok', 'Erstmaliges Speichern erfolgreich (Charakter ' + charIdx + ', doc: characters/' + targetUid + ')');
         })
         .catch(function(e) {
-          console.warn('Firestore set() Fehler:', e);
+          dbgLog('err', 'Firestore set() fehlgeschlagen (Charakter ' + charIdx + ', doc: characters/' + targetUid + ') — nur lokal gespeichert', e);
           localSave();
         });
       return;
@@ -3580,21 +3723,27 @@ function fbSave() {
     // Diff berechnen
     var diff = _flattenDiff(charIdx, snap, _fbLastSaved[charIdx]);
 
-    if (Object.keys(diff).length === 0) return; // Nichts geändert
+    if (Object.keys(diff).length === 0) {
+      dbgLog('info', 'fbSave: keine Änderungen erkannt (Charakter ' + charIdx + ') — nichts zu speichern.');
+      return; // Nichts geändert
+    }
 
     // Metafelder immer mitschicken
     diff['activeCharIdx']  = charIdx;
     diff['_lastEditedBy']  = fbUser.uid;
     diff['updatedAt']      = firebase.firestore.FieldValue.serverTimestamp();
 
+    dbgLog('info', 'fbSave: update() für characters/' + targetUid + ' — Felder: ' + Object.keys(diff).join(', '));
+
     // update() benutzen – bei Fehler (Dokument existiert nicht) auf set() zurückfallen
     docRef.update(diff)
       .then(function() {
         _fbLastSaved[charIdx] = JSON.parse(JSON.stringify(snap));
         localSave();
+        dbgLog('ok', 'Speichern erfolgreich (Charakter ' + charIdx + ', doc: characters/' + targetUid + ')');
       })
       .catch(function(e) {
-        console.warn('Firestore update() Fehler, versuche set():', e);
+        dbgLog('warn', 'Firestore update() fehlgeschlagen (doc: characters/' + targetUid + ') — versuche Fallback set()', e);
         // Fallback: vollständiges set() wenn update() fehlschlägt (z.B. Dokument nicht vorhanden)
         var full = {
           activeCharIdx: charIdx,
@@ -3606,16 +3755,16 @@ function fbSave() {
           .then(function() {
             _fbLastSaved[charIdx] = JSON.parse(JSON.stringify(snap));
             localSave();
-            console.log('Firestore: Fallback set() erfolgreich');
+            dbgLog('ok', 'Fallback set() erfolgreich (Charakter ' + charIdx + ', doc: characters/' + targetUid + ')');
           })
           .catch(function(e2) {
-            console.warn('Firestore Fehler (auch set() fehlgeschlagen):', e2);
+            dbgLog('err', 'Speichern endgültig fehlgeschlagen (auch Fallback set()), doc: characters/' + targetUid + ' — nur lokal gespeichert', e2);
             localSave();
           });
       });
 
   } catch(e) {
-    console.warn('fbSave() Ausnahme:', e);
+    dbgLog('err', 'fbSave() Ausnahme (unerwarteter Fehler vor dem Firestore-Aufruf)', e);
     localSave();
   }
 }
