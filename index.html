@@ -2355,7 +2355,6 @@ function buildItems(){
     var hasNote=it.notes&&it.notes.length>0;
     var isMagic=it.magic||false;
   var isEquipped=it.equipped||false;
-    var isEquipped=it.equipped||false;
     var rowClass='item-row'+(isMagic?' magic':'')+(isEquipped?' equipped':'');
     var nameColor=isMagic?'#cc88ff':isEquipped?'var(--gold-light)':'var(--text-main)';
     html+='<div class="'+rowClass+'">'+
@@ -2514,7 +2513,7 @@ function applyData(d){
   function s(id,val){ var e=document.getElementById(id); if(e&&val!=null) e.value=val; }
   s('charName',d.charName);s('charSub',d.charSub);
   s('statRK',d.statRK);s('statINI',d.statINI);s('statBEW',d.statBEW);
-  hp=(d.hp!=null&&d.hp!=='')?d.hp:23;temp=d.temp||0;insp=d.insp||false;
+  hp=(d.hp!=null&&d.hp!=='')?d.hp:23;temp=d.temp!=null?d.temp:(d.tempHp!=null?d.tempHp:0);insp=d.insp||false;
   s('maxHp',d.maxHp);s('profBonus',d.profBonus);s('passPerc',d.passPerc);
   s('aSTAm',d.aSTAm);s('aSTAv',d.aSTAv);s('aGESm',d.aGESm);s('aGESv',d.aGESv);
   s('aKONm',d.aKONm);s('aKONv',d.aKONv);s('aINTm',d.aINTm);s('aINTv',d.aINTv);
@@ -2920,8 +2919,8 @@ function initPlayerMode() {
           dbgLog('info', 'Update erhalten (Charakter ' + idx + ') — identisch mit lokalem Stand, wird ignoriert (vermutlich Echo der eigenen Speicherung).');
         } else if (d._lastEditedBy && d._lastEditedBy !== fbUser.uid) {
           characters = incomingChars;
-          activeCharIdx = 0;
-          applyData(characters[0]);
+          activeCharIdx = idx < characters.length ? idx : 0;
+          applyData(characters[activeCharIdx]);
           incomingChars.forEach(function(c, i) { _fbLastSaved[i] = JSON.parse(JSON.stringify(c)); });
           buildCharSwitcher();
           localSave();
