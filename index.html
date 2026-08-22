@@ -2844,6 +2844,25 @@ function initPlayerMode() {
   // Sicherstellen dass Master-UI nicht sichtbar ist
   var mp = document.getElementById('masterPage');
   if (mp) mp.style.display = 'none';
+
+  // "dirty"-Flags (nicht bestätigte Offline-Änderungen) aus einem vorherigen
+  // Lauf MÜSSEN bekannt sein, BEVOR der erste Firestore-Snapshot verarbeitet
+  // wird — sonst würde der Initial-Load sie versehentlich mit einem älteren
+  // Cloud-Stand überschreiben (Firestore hat hier keine eigene Offline-
+  // Persistenz aktiviert, localStorage ist die einzige Quelle dafür).
+  var _localRawAtStart = null;
+  try {
+    var _rawAtStart = _lsGet('dnd_autosave');
+    if (_rawAtStart) {
+      _localRawAtStart = JSON.parse(_rawAtStart);
+      if (Array.isArray(_localRawAtStart.dirty)) {
+        _localRawAtStart.dirty.forEach(function(k){ _dirtyChars[k] = true; });
+      }
+    }
+  } catch(e) {
+    dbgLog('err', 'Vorherigen Offline-Stand (dirty-Flags) konnte nicht gelesen werden', e);
+  }
+
   // Echtzeit-Listener auf eigenen Charakterbogen
   var docRef = fbDb.collection('characters').doc(fbUser.uid);
   var _playerInitialLoadDone = false;
@@ -2860,14 +2879,40 @@ function initPlayerMode() {
           var normChars = _normalizeChars(d.chars);
           if (normChars && normChars.length > 0) {
             characters = normChars;
+
+            // Als "dirty" markierte Charaktere NICHT durch den (potenziell
+            // älteren) Cloud-Stand überschreiben — die lokal zwischengespeicherte,
+            // noch nicht bestätigte Version behalten und gleich erneut senden.
+            var restoredDirty = [];
+            if (_localRawAtStart && Array.isArray(_localRawAtStart.chars)) {
+              Object.keys(_dirtyChars).forEach(function(key) {
+                var prefix = fbUser.uid + ':';
+                if (key.indexOf(prefix) !== 0) return;
+                var dIdx = parseInt(key.slice(prefix.length), 10);
+                if (_localRawAtStart.chars[dIdx]) {
+                  while (characters.length <= dIdx) characters.push({});
+                  characters[dIdx] = _localRawAtStart.chars[dIdx];
+                  restoredDirty.push(dIdx);
+                }
+              });
+            }
+
             activeCharIdx = _clampIdx(d.activeCharIdx, characters);
             applyData(characters[activeCharIdx]);
             characters.forEach(function(c, i) {
-              _fbLastSaved[_fbKey(fbUser.uid, i)] = JSON.parse(JSON.stringify(c));
+              // Für dirty Charaktere den bekannten Cloud-Stand NICHT als "bestätigt"
+              // cachen — sonst würde ein späteres eigenes erneutes Senden fälschlich
+              // als "keine Änderung" erkannt werden.
+              if (restoredDirty.indexOf(i) === -1) {
+                _fbLastSaved[_fbKey(fbUser.uid, i)] = JSON.parse(JSON.stringify(c));
+              }
             });
             buildCharSwitcher();
             localSave();
             dbgLog('ok', 'Initial geladen: ' + characters.length + ' Charakter(e) aus Firestore (aktiv: ' + activeCharIdx + ')');
+            if (restoredDirty.length > 0) {
+              dbgLog('warn', 'Nicht bestätigte Offline-Änderung(en) von vor dem Neustart wiederhergestellt (Charakter ' + restoredDirty.join(', ') + ') — werden jetzt erneut gesendet.');
+            }
             if (isLegacyArray) {
               // Altes Array-Format → auf das neue, feldpfad-sichere Map-Format ummigrieren.
               dbgLog('warn', 'Altes Array-Format für chars erkannt — migriere zu Map-Format (kein Datenverlust)...');
