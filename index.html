@@ -2898,12 +2898,22 @@ function initPlayerMode() {
       // (nicht nur anhand der UID, da derselbe Account auf mehreren Geräten
       // angemeldet sein kann — dann wäre _lastEditedBy identisch, obwohl
       // die Daten von einem ANDEREN Gerät kommen und übernommen werden müssen)
+
+      // Lokales Echo eines eigenen, noch nicht server-bestätigten Schreibvorgangs
+      // ignorieren — diese Daten haben wir bereits im UI, ein erneutes Anwenden
+      // würde nur unnötig den Bogen neu aufbauen (Cursor-Sprünge etc.) und würde
+      // fälschlich als "anderes Gerät" erkannt, weil _fbLastSaved erst nach dem
+      // Server-Ack aktualisiert wird.
+      if (doc.metadata.hasPendingWrites) {
+        dbgLog('info', 'Update ignoriert (Charakter ' + (typeof d.activeCharIdx === 'number' ? d.activeCharIdx : 0) + ') — lokales Echo des eigenen, noch nicht bestätigten Speicherns.');
+        return;
+      }
       try {
         var idx = typeof d.activeCharIdx === 'number' ? d.activeCharIdx : 0;
         var incomingChars = _normalizeChars(d.chars) || [d];
         var incomingChar = incomingChars[idx];
         var localChar = _fbLastSaved[idx];
-        var sameAsLocal = JSON.stringify(incomingChar) === JSON.stringify(localChar);
+        var sameAsLocal = _canonicalJSON(incomingChar) === _canonicalJSON(localChar);
 
         var wasCorrupted = d.chars && !Array.isArray(d.chars);
         if (sameAsLocal) {
@@ -3771,7 +3781,18 @@ var _fbLastSaved = {}; // charIdx → flattened field snapshot
 // Flacht einen Charakter-Objekt zu Firestore-Update-Pfaden ab
 // z.B. { hp: 23, skills: [...] } → { "chars.0.hp": 23, "chars.0.skills": [...] }
 function _hasChanges(newData, oldData) {
-  return JSON.stringify(newData) !== JSON.stringify(oldData);
+  return _canonicalJSON(newData) !== _canonicalJSON(oldData);
+}
+
+// Schlüsselreihenfolge-unabhängiger Vergleich: Firestore garantiert beim
+// Zurücklesen keine stabile Objekt-Key-Reihenfolge, daher reicht ein reiner
+// JSON.stringify()-Vergleich nicht aus, um "wirklich unterschiedlich" von
+// "inhaltlich identisch, nur anders sortiert" zu unterscheiden.
+function _canonicalJSON(obj) {
+  if (obj === null || typeof obj !== 'object') return JSON.stringify(obj);
+  if (Array.isArray(obj)) return '[' + obj.map(_canonicalJSON).join(',') + ']';
+  var keys = Object.keys(obj).sort();
+  return '{' + keys.map(function(k){ return JSON.stringify(k) + ':' + _canonicalJSON(obj[k]); }).join(',') + '}';
 }
 
 // Wandelt ein durch fehlerhafte Array-Index-Updates "kaputtes" chars-Feld
