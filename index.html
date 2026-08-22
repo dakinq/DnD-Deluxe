@@ -2435,19 +2435,11 @@ function switchChar(i){
     var targetUid = (masterEditingPlayer && masterActiveUid) ? masterActiveUid : fbUser.uid;
     var key = _fbKey(targetUid, oldIdx);
     if (_hasChanges(oldSnap, _fbLastSaved[key])) {
-      // Alten Charakter speichern UND den neuen aktiven Index in einer einzigen
-      // atomaren Transaktion setzen (kein Race zwischen zwei separaten Schreibvorgängen).
-      _fbPersistCharacter(targetUid, oldIdx, oldSnap, i, fbUser.uid);
-    } else {
-      // Am alten Charakter gab es nichts zu speichern — nur den aktiven Index aktualisieren.
-      fbDb.collection('characters').doc(targetUid).set({
-        activeCharIdx: i,
-        _lastEditedBy: fbUser.uid,
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      }, { merge: true }).catch(function(e) {
-        dbgLog('err', 'Aktiver Charakter-Index konnte nicht gespeichert werden', e);
-      });
+      _fbWriteCharacter(targetUid, oldIdx, oldSnap);
     }
+    // Unabhängig vom Charakter-Inhalt: der aktive Index ist ein eigenes Feld
+    // auf demselben Dokument — kein Race mit obigem Aufruf möglich.
+    _fbPersistActiveIdx(targetUid, i);
   }
 }
 function newChar(){
@@ -2461,7 +2453,7 @@ function newChar(){
     var flushUid = (masterEditingPlayer && masterActiveUid) ? masterActiveUid : fbUser.uid;
     var flushKey = _fbKey(flushUid, oldIdx);
     if (_hasChanges(oldSnap, _fbLastSaved[flushKey])) {
-      _fbPersistCharacter(flushUid, oldIdx, oldSnap, oldIdx, fbUser.uid);
+      _fbWriteCharacter(flushUid, oldIdx, oldSnap);
     }
   }
 
@@ -2478,18 +2470,18 @@ function newChar(){
   activeCharIdx=characters.length-1;
   applyData(blank);
   buildCharSwitcher();
-  // Neuen Charakter sofort vollständig in Firestore schreiben (kein Debounce)
-  // gather() NACH applyData() aufrufen, damit das DOM korrekte Werte hat
+  // Neuen Charakter sofort schreiben (kein Debounce) + aktiven Index setzen.
+  // gather() NACH applyData() aufrufen, damit das DOM korrekte Werte hat.
   if(fbUser && fbDb && !masterViewingReadOnly){
     var newIdx = activeCharIdx;
     var targetUid = (masterEditingPlayer && masterActiveUid) ? masterActiveUid : fbUser.uid;
     // Kleines Timeout damit applyData() das DOM vollständig rendern kann
     setTimeout(function(){
       var snap = gather();
-      characters[newIdx] = snap;
-      _fbPersistCharacter(targetUid, newIdx, snap, newIdx, fbUser.uid, function(success){
+      _fbWriteCharacter(targetUid, newIdx, snap, function(success){
         toast(success ? 'Neuer Charakter erstellt' : 'Neuer Charakter erstellt (nur lokal)');
       });
+      _fbPersistActiveIdx(targetUid, newIdx);
     }, 100);
   } else {
     localSave();
@@ -2840,7 +2832,10 @@ fbAuth.onAuthStateChanged(function(user) {
 
 // Online/Offline-Status protokollieren, da Speichern bei fehlendem Netz fehlschlägt
 window.addEventListener('offline', function(){ dbgLog('warn', 'Gerät ist offline — Speichern in Firestore wird fehlschlagen, bis die Verbindung zurück ist.'); });
-window.addEventListener('online',  function(){ dbgLog('info', 'Gerät ist wieder online.'); });
+window.addEventListener('online',  function(){
+  dbgLog('info', 'Gerät ist wieder online.');
+  if (fbUser) _flushDirty(fbUser.uid);
+});
 
 // ════════════════════════════════════════════════
 // ── PLAYER MODE ──
@@ -2855,12 +2850,14 @@ function initPlayerMode() {
   var unsub = docRef.onSnapshot(function(doc) {
     if (doc.exists) {
       var d = doc.data();
-      // Beim ersten Laden immer die Daten anwenden (unabhängig von _lastEditedBy)
+      // Beim ersten Laden immer die Daten anwenden UND activeCharIdx aus der
+      // Cloud übernehmen — das ist der EINZIGE Zeitpunkt, an dem das passiert.
+      // Danach ist activeCharIdx rein lokaler Gerätezustand.
       if (!_playerInitialLoadDone) {
         _playerInitialLoadDone = true;
         try {
+          var isLegacyArray = Array.isArray(d.chars);
           var normChars = _normalizeChars(d.chars);
-          var wasCorrupted = d.chars && !Array.isArray(d.chars);
           if (normChars && normChars.length > 0) {
             characters = normChars;
             activeCharIdx = _clampIdx(d.activeCharIdx, characters);
@@ -2871,63 +2868,34 @@ function initPlayerMode() {
             buildCharSwitcher();
             localSave();
             dbgLog('ok', 'Initial geladen: ' + characters.length + ' Charakter(e) aus Firestore (aktiv: ' + activeCharIdx + ')');
-            if (wasCorrupted) {
-              dbgLog('warn', 'chars-Feld war beschädigt (Map statt Array, durch altes Array-Index-Update) — repariere und schreibe korrekt zurück...');
-              docRef.update({
-                chars: characters,
-                activeCharIdx: activeCharIdx,
-                _lastEditedBy: fbUser.uid,
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-              }).then(function() {
-                dbgLog('ok', 'Reparatur erfolgreich — chars ist wieder ein echtes Array.');
+            if (isLegacyArray) {
+              // Altes Array-Format → auf das neue, feldpfad-sichere Map-Format ummigrieren.
+              dbgLog('warn', 'Altes Array-Format für chars erkannt — migriere zu Map-Format (kein Datenverlust)...');
+              var charsMap = {};
+              characters.forEach(function(c, i) { charsMap[i] = c; });
+              docRef.set({ chars: charsMap }, { merge: true }).then(function() {
+                dbgLog('ok', 'Migration zu Map-Format erfolgreich.');
               }).catch(function(e) {
-                dbgLog('err', 'Reparatur fehlgeschlagen', e);
+                dbgLog('err', 'Migration zu Map-Format fehlgeschlagen (Daten bleiben im alten Format nutzbar)', e);
               });
             }
+            _flushDirty(fbUser.uid); // etwaige Offline-Änderungen von vor einem Neustart nachsenden
           } else {
-            // Dokument existiert aber hat kein chars-Array (altes Format)
-            // Versuche applyData mit dem Dokument selbst, dann neu speichern
-            dbgLog('warn', 'Dokument ohne chars-Array gefunden — migriere zu neuem Format...');
+            // Dokument existiert, aber weder Array noch Map mit chars (ältestes Format:
+            // Dokument selbst war der einzige Charakter). Übernehmen und als Charakter 0 anlegen.
+            dbgLog('warn', 'Dokument ohne chars-Feld gefunden (ältestes Format) — migriere zu Charakter 0...');
             applyData(d);
-            // Sofort als neues Format hochladen — per Transaktion, damit ein
-            // zweites Gerät, das GLEICHZEITIG migriert, sich nicht gegenseitig
-            // überschreibt (wer zuerst committet gewinnt, der zweite übernimmt
-            // dessen Stand statt ihn zu überschreiben).
             setTimeout(function() {
               var snap = gather();
-              fbDb.runTransaction(function(tx) {
-                return tx.get(docRef).then(function(doc2) {
-                  var d2 = doc2.exists ? doc2.data() : null;
-                  var already = d2 ? _normalizeChars(d2.chars) : null;
-                  if (already && already.length > 0) {
-                    return { alreadyMigrated: true, chars: already, activeIdx: d2.activeCharIdx };
-                  }
-                  tx.set(docRef, {
-                    activeCharIdx: 0,
-                    _lastEditedBy: fbUser.uid,
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    chars: [snap]
-                  }, { merge: true });
-                  return { alreadyMigrated: false };
-                });
-              }).then(function(result) {
-                if (result.alreadyMigrated) {
-                  characters = result.chars;
-                  activeCharIdx = _clampIdx(result.activeIdx, characters);
-                  applyData(characters[activeCharIdx]);
-                  characters.forEach(function(c, i) {
-                    _fbLastSaved[_fbKey(fbUser.uid, i)] = JSON.parse(JSON.stringify(c));
-                  });
-                  dbgLog('warn', 'Migration übersprungen — ein anderes Gerät hatte bereits migriert, dessen Stand übernommen.');
-                } else {
-                  characters = [snap];
-                  activeCharIdx = 0;
-                  _fbLastSaved[_fbKey(fbUser.uid, 0)] = JSON.parse(JSON.stringify(snap));
-                  dbgLog('ok', 'Migration zu chars-Array erfolgreich');
-                }
-                buildCharSwitcher();
-                localSave();
-              }).catch(function(e) { dbgLog('err', 'Migration fehlgeschlagen', e); localLoad(); });
+              characters = [snap];
+              activeCharIdx = 0;
+              applyData(snap);
+              buildCharSwitcher();
+              localSave();
+              _fbWriteCharacter(fbUser.uid, 0, snap, function(success) {
+                dbgLog(success ? 'ok' : 'err', success ? 'Migration zu Charakter 0 erfolgreich' : 'Migration zu Charakter 0 fehlgeschlagen — bleibt lokal erhalten und wird nachgesendet');
+              });
+              _fbPersistActiveIdx(fbUser.uid, 0);
             }, 200);
           }
         } catch(e) {
@@ -2936,61 +2904,78 @@ function initPlayerMode() {
         }
         return;
       }
-      // Folge-Updates: prüfen ob sich der Inhalt wirklich geändert hat
-      // (nicht nur anhand der UID, da derselbe Account auf mehreren Geräten
-      // angemeldet sein kann — dann wäre _lastEditedBy identisch, obwohl
-      // die Daten von einem ANDEREN Gerät kommen und übernommen werden müssen)
+
+      // ── Folge-Updates ──
+      // activeCharIdx wird hier BEWUSST NICHT mehr gelesen/übernommen — ein
+      // Charakterwechsel auf einem anderen Gerät darf dieses Gerät nicht
+      // "mitreißen". Nur ein echter Wechsel auf DIESEM Gerät (switchChar())
+      // ändert den lokalen activeCharIdx.
 
       // Lokales Echo eines eigenen, noch nicht server-bestätigten Schreibvorgangs
-      // ignorieren — diese Daten haben wir bereits im UI, ein erneutes Anwenden
-      // würde nur unnötig den Bogen neu aufbauen (Cursor-Sprünge etc.) und würde
-      // fälschlich als "anderes Gerät" erkannt, weil _fbLastSaved erst nach dem
-      // Server-Ack aktualisiert wird.
+      // komplett ignorieren — diese Daten haben wir bereits im UI.
       if (doc.metadata.hasPendingWrites) {
-        dbgLog('info', 'Update ignoriert (Charakter ' + (typeof d.activeCharIdx === 'number' ? d.activeCharIdx : 0) + ') — lokales Echo des eigenen, noch nicht bestätigten Speicherns.');
+        dbgLog('info', 'Update ignoriert — lokales Echo eines eigenen, noch nicht bestätigten Speicherns.');
         return;
       }
-      try {
-        var incomingChars = _normalizeChars(d.chars) || [d];
-        var idx = _clampIdx(d.activeCharIdx, incomingChars);
-        var incomingChar = incomingChars[idx];
-        var localChar = _fbLastSaved[_fbKey(fbUser.uid, idx)];
-        var sameAsLocal = _canonicalJSON(incomingChar) === _canonicalJSON(localChar);
 
-        var wasCorrupted = d.chars && !Array.isArray(d.chars);
-        if (sameAsLocal) {
-          dbgLog('info', 'Update erhalten (Charakter ' + idx + ') — identisch mit lokalem Stand, wird ignoriert (vermutlich Echo der eigenen Speicherung).');
-        } else if (d._lastEditedBy && d._lastEditedBy !== fbUser.uid) {
-          characters = incomingChars;
-          activeCharIdx = idx;
-          applyData(characters[activeCharIdx]);
-          incomingChars.forEach(function(c, i) { _fbLastSaved[_fbKey(fbUser.uid, i)] = JSON.parse(JSON.stringify(c)); });
-          buildCharSwitcher();
-          localSave();
-          dbgLog('ok', 'Update vom Spielleiter übernommen (Charakter ' + idx + ').');
-          toast('📋 Master hat deinen Bogen aktualisiert');
-        } else {
-          // Gleicher Account, aber Inhalt unterscheidet sich vom lokal bekannten Stand
-          // → vermutlich ein anderes Gerät/Tab desselben Accounts hat gespeichert.
-          characters = incomingChars;
-          activeCharIdx = idx;
-          applyData(characters[activeCharIdx]);
-          incomingChars.forEach(function(c, i) { _fbLastSaved[_fbKey(fbUser.uid, i)] = JSON.parse(JSON.stringify(c)); });
-          buildCharSwitcher();
-          localSave();
-          dbgLog('warn', 'Update vom selben Account, aber abweichender Inhalt (vermutlich anderes Gerät/Tab) — wurde übernommen (Charakter ' + idx + ').');
+      try {
+        var isLegacyArray2 = Array.isArray(d.chars);
+        var incomingChars = _normalizeChars(d.chars);
+        if (!incomingChars) { return; }
+
+        var anyApplied = false;
+        for (var idx = 0; idx < incomingChars.length; idx++) {
+          var incomingChar = incomingChars[idx];
+          if (!incomingChar) continue;
+
+          // Eigene, noch nicht bestätigte lokale Änderung an GENAU diesem Charakter
+          // hat Vorrang — das eingehende (potenziell ältere) Update wird zurückgestellt,
+          // die eigene Änderung wird ohnehin gerade selbst gesendet/erneut versucht.
+          if (_isDirty(fbUser.uid, idx)) {
+            dbgLog('warn', 'Eingehendes Update für Charakter ' + idx + ' zurückgestellt — eigene, noch nicht bestätigte Änderung hat Vorrang.');
+            continue;
+          }
+
+          // Revision prüfen: ein älterer/verspäteter Cloud-Stand darf einen neueren
+          // lokalen Stand niemals ersetzen.
+          var localChar = characters[idx];
+          var localRev = (localChar && localChar._rev) || 0;
+          var incomingRev = incomingChar._rev || 0;
+          if (incomingRev < localRev) {
+            dbgLog('warn', 'Älterer Cloud-Stand für Charakter ' + idx + ' (rev ' + incomingRev + ' < lokal ' + localRev + ') ignoriert.');
+            continue;
+          }
+
+          // Nur wirklich unterschiedlichen Inhalt übernehmen.
+          if (_canonicalJSON(incomingChar) === _canonicalJSON(localChar)) continue;
+
+          // NUR diesen einen Charakter im lokalen Array ersetzen — alle anderen,
+          // auch noch nicht synchronisierte, bleiben unangetastet.
+          while (characters.length <= idx) characters.push({});
+          characters[idx] = incomingChar;
+          _fbLastSaved[_fbKey(fbUser.uid, idx)] = JSON.parse(JSON.stringify(incomingChar));
+          anyApplied = true;
+
+          if (idx === activeCharIdx) {
+            applyData(characters[idx]);
+            dbgLog('ok', 'Aktiver Charakter aktualisiert (Charakter ' + idx + ', rev ' + incomingRev + ').');
+            if (d._lastEditedBy && d._lastEditedBy !== fbUser.uid) toast('📋 Master hat deinen Bogen aktualisiert');
+          } else {
+            dbgLog('info', 'Charakter ' + idx + ' im Hintergrund aktualisiert (nicht aktiv angezeigt, rev ' + incomingRev + ') — activeCharIdx bleibt unverändert.');
+          }
         }
-        if (wasCorrupted && !sameAsLocal) {
-          dbgLog('warn', 'chars-Feld war beschädigt (Map statt Array) — repariere und schreibe korrekt zurück...');
-          docRef.update({
-            chars: characters,
-            activeCharIdx: activeCharIdx,
-            _lastEditedBy: fbUser.uid,
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-          }).then(function() {
-            dbgLog('ok', 'Reparatur erfolgreich — chars ist wieder ein echtes Array.');
-          }).catch(function(e) {
-            dbgLog('err', 'Reparatur fehlgeschlagen', e);
+
+        if (anyApplied) {
+          buildCharSwitcher();
+          localSave();
+        }
+
+        if (isLegacyArray2) {
+          dbgLog('warn', 'Altes Array-Format bei Folge-Update erkannt — migriere zu Map-Format...');
+          var charsMap2 = {};
+          characters.forEach(function(c, i) { charsMap2[i] = c; });
+          docRef.set({ chars: charsMap2 }, { merge: true }).catch(function(e) {
+            dbgLog('err', 'Migration zu Map-Format (Folge-Update) fehlgeschlagen', e);
           });
         }
       } catch(e) {
@@ -3004,11 +2989,9 @@ function initPlayerMode() {
         dbgLog('info', 'Kein localStorage-Stand vorhanden — Standard-Daten werden hochgeladen.');
       }
       _playerInitialLoadDone = true;
-      // Sofort in Firestore anlegen (fbSave() nutzt jetzt bereits sauber
-      // pro Benutzer/Charakter gekoppelte Keys — kein globales Zurücksetzen
-      // von _fbLastSaved mehr nötig).
       setTimeout(function() {
         fbSave();
+        _fbPersistActiveIdx(fbUser.uid, activeCharIdx);
       }, 300);
     }
   }, function(e) {
@@ -3780,13 +3763,12 @@ function assignItemToPlayers(itemId, itemData) {
             }
           }
 
-          var updatedChars = chars.slice();
-          updatedChars[idx] = Object.assign({}, char, { items: items });
-          tx.set(docRef, {
-            chars: updatedChars,
+          var payload = {};
+          payload['chars.' + idx + '.items'] = items; // NUR dieses eine Feld dieses einen Charakters
+          tx.set(docRef, Object.assign(payload, {
             _lastEditedBy: fbUser ? fbUser.uid : 'master',
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-          }, { merge: true });
+          }), { merge: true });
           return idx;
         });
       }).then(function(idx) {
@@ -3828,40 +3810,70 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// ── SPEICHERN (transaktionsbasiert, pro Charakter) ──
-// ════════════════════════════════════════════════
 
-// Letzter bekannter Firestore-Stand, sauber an Benutzer+Charakter-Index gekoppelt
-// (Key statt reinem charIdx, damit der Master beim Bearbeiten fremder Spieler
-// nicht versehentlich den Cache der eigenen Charaktere trifft oder umgekehrt).
-var _fbLastSaved = {}; // "uid:charIdx" → Snapshot des zuletzt erfolgreich gespeicherten Charakters
+// ── SPEICHERN (pro Charakter, feldpfad-basiert, offline-sicher) ──
+// ════════════════════════════════════════════════
+//
+// Architektur:
+//  - Jeder Charakter wird als eigener MAP-Eintrag "chars.<idx>" gespeichert
+//    (chars ist in Firestore eine Map { "0": {...}, "1": {...} }, kein Array).
+//    Ein Feldpfad-Update wie chars.1 berührt NUR diesen einen Eintrag —
+//    anders als bei einem Array gibt es dabei keine Korruptionsgefahr, und
+//    es ist ein normales, von Firestore offiziell unterstütztes Feature.
+//  - Dadurch wird für normales Speichern KEINE Transaktion mehr gebraucht:
+//    set(payload, {merge:true}) reicht, legt das Dokument bei Bedarf an,
+//    und wird vom Firestore-SDK automatisch offline gepuffert und bei
+//    Wiederverbindung selbstständig nachgesendet.
+//  - activeCharIdx ist ein komplett eigenes Feld auf demselben Dokument und
+//    wird NUR bei einem echten Charakterwechsel geschrieben — niemals als
+//    Nebeneffekt eines normalen Speicherns. Andere Geräte übernehmen ihn nur
+//    beim allerersten Laden nach Login, nie bei einem laufenden Live-Update.
+//  - Jeder Charakter trägt eine eigene, monoton steigende Revision (_rev).
+//    Ein eingehendes Update wird nur übernommen, wenn seine Revision nicht
+//    älter ist als die lokal bekannte — ein älterer/verzögerter Cloud-Stand
+//    kann so nie einen neueren lokalen Stand überschreiben.
+//  - Offline-Änderungen werden zusätzlich als "dirty" markiert und in
+//    localStorage gehalten; bei jedem Start und bei "online" wird versucht,
+//    sie erneut zu senden (zusätzliche Absicherung neben der SDK-eigenen
+//    Offline-Warteschlange, u.a. für den Fall, dass die Antwort verloren ging).
+
+var _fbLastSaved = {}; // "uid:charIdx" → zuletzt bestätigter Firestore-Stand (ohne _rev, s. _canonicalJSON)
+var _dirtyChars  = {}; // "uid:charIdx" → true, solange eine lokale Änderung noch nicht bestätigt wurde
 
 function _fbKey(uid, idx) {
   return uid + ':' + idx;
 }
 
+function _markDirty(uid, idx)  { _dirtyChars[_fbKey(uid, idx)] = true; }
+function _clearDirty(uid, idx) { delete _dirtyChars[_fbKey(uid, idx)]; }
+function _isDirty(uid, idx)    { return !!_dirtyChars[_fbKey(uid, idx)]; }
+
 function _hasChanges(newData, oldData) {
   return _canonicalJSON(newData) !== _canonicalJSON(oldData);
 }
 
-// Schlüsselreihenfolge-unabhängiger Vergleich: Firestore garantiert beim
-// Zurücklesen keine stabile Objekt-Key-Reihenfolge, daher reicht ein reiner
-// JSON.stringify()-Vergleich nicht aus, um "wirklich unterschiedlich" von
-// "inhaltlich identisch, nur anders sortiert" zu unterscheiden.
+// Schlüsselreihenfolge-unabhängiger Vergleich (Firestore garantiert keine
+// stabile Feld-Reihenfolge beim Zurücklesen). Ignoriert bewusst "_rev",
+// damit ein reiner Revisionssprung nicht fälschlich als Inhaltsänderung zählt.
 function _canonicalJSON(obj) {
   if (obj === null || typeof obj !== 'object') return JSON.stringify(obj);
   if (Array.isArray(obj)) return '[' + obj.map(_canonicalJSON).join(',') + ']';
-  var keys = Object.keys(obj).sort();
+  var keys = Object.keys(obj).filter(function(k){ return k !== '_rev'; }).sort();
   return '{' + keys.map(function(k){ return JSON.stringify(k) + ':' + _canonicalJSON(obj[k]); }).join(',') + '}';
 }
 
-// Wandelt ein durch fehlerhafte Array-Index-Updates "kaputtes" chars-Feld
-// (Firestore-Map mit Zahlen-Keys statt echtem Array) zurück in ein echtes Array.
+// Liest sowohl das aktuelle Map-Format ({ "0": {...}, "1": {...} }) als auch
+// das alte Array-Format (Migration) und liefert immer ein echtes JS-Array.
 function _normalizeChars(chars) {
   if (Array.isArray(chars)) return chars;
   if (chars && typeof chars === 'object') {
     var keys = Object.keys(chars).filter(function(k){ return /^\d+$/.test(k); }).sort(function(a,b){ return a - b; });
-    if (keys.length > 0) return keys.map(function(k){ return chars[k]; });
+    if (keys.length > 0) {
+      var maxIdx = Math.max.apply(null, keys.map(Number));
+      var arr = [];
+      for (var i = 0; i <= maxIdx; i++) arr[i] = chars[String(i)] || {};
+      return arr;
+    }
   }
   return null;
 }
@@ -3875,36 +3887,71 @@ function _clampIdx(idx, arr) {
   return idx;
 }
 
-// Schreibt GENAU EINEN Charakter in Firestore, per Transaktion:
-// Liest zuerst den aktuellen (serverseitigen) chars-Stand, ersetzt darin nur
-// den Index charIdx und schreibt das Ergebnis zurück. Dadurch werden parallel
-// von einem anderen Gerät/Tab geänderte ANDERE Charaktere nicht überschrieben,
-// selbst wenn der lokale characters-Cache hier veraltet ist.
-function _fbPersistCharacter(targetUid, charIdx, snap, activeIdxToPersist, editedByLabel, onDone) {
+// Schreibt GENAU EINEN Charakter — als isolierten Map-Feldpfad "chars.<idx>".
+// Andere Charaktere im selben Dokument werden dabei nicht gelesen, nicht
+// gesendet und nicht berührt.
+function _fbWriteCharacter(targetUid, charIdx, snap, onDone) {
   if (!fbUser || !fbDb) { if (onDone) onDone(false); return; }
+  var oldRev = (characters[charIdx] && characters[charIdx]._rev) || 0;
+  snap = Object.assign({}, snap, { _rev: oldRev + 1 });
+  characters[charIdx] = snap;
+
+  var key = _fbKey(targetUid, charIdx);
+  _markDirty(targetUid, charIdx);
+  localSave(); // Offline-Fallback sofort sichern, BEVOR der Netzwerk-Versuch startet
+
   var docRef = fbDb.collection('characters').doc(targetUid);
-  fbDb.runTransaction(function(tx) {
-    return tx.get(docRef).then(function(doc) {
-      var d = doc.exists ? doc.data() : {};
-      var chars = _normalizeChars(d.chars) || [];
-      while (chars.length <= charIdx) chars.push({});
-      chars[charIdx] = snap;
-      tx.set(docRef, {
-        chars: chars,
-        activeCharIdx: activeIdxToPersist,
-        _lastEditedBy: editedByLabel || fbUser.uid,
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      }, { merge: true });
-    });
-  }).then(function() {
-    _fbLastSaved[_fbKey(targetUid, charIdx)] = JSON.parse(JSON.stringify(snap));
+  var payload = {};
+  payload['chars.' + charIdx] = snap;
+  payload['_lastEditedBy'] = fbUser.uid;
+  payload['updatedAt'] = firebase.firestore.FieldValue.serverTimestamp();
+
+  docRef.set(payload, { merge: true }).then(function() {
+    _clearDirty(targetUid, charIdx);
+    _fbLastSaved[key] = JSON.parse(JSON.stringify(snap));
     localSave();
-    dbgLog('ok', 'Speichern erfolgreich (Charakter ' + charIdx + ', doc: characters/' + targetUid + ')');
+    dbgLog('ok', 'Speichern erfolgreich (Charakter ' + charIdx + ', doc: characters/' + targetUid + ', rev ' + snap._rev + ')');
     if (onDone) onDone(true);
   }).catch(function(e) {
-    dbgLog('err', 'Firestore-Transaktion fehlgeschlagen (Charakter ' + charIdx + ', doc: characters/' + targetUid + ') — nur lokal gespeichert', e);
-    localSave();
+    // "dirty" bleibt bewusst gesetzt: das Firestore-SDK puffert den Schreibvorgang
+    // bei fehlender Verbindung automatisch und sendet ihn selbst nach; zusätzlich
+    // sorgt _flushDirty() beim nächsten Start/Reconnect für eine erneute Sicherung,
+    // falls die Bestätigung verloren gegangen sein sollte.
+    var offline = e && (e.code === 'unavailable' || /offline/i.test(e.message || ''));
+    dbgLog(offline ? 'warn' : 'err',
+      (offline ? 'Offline — ' : 'Fehler — ') + 'Speichern für Charakter ' + charIdx + ' (doc: characters/' + targetUid + ') noch nicht bestätigt, bleibt als "pending" markiert.', e);
     if (onDone) onDone(false);
+  });
+}
+
+// Aktiven Charakter-Index separat synchronisieren — komplett unabhängig vom
+// Inhalt eines Charakters, daher niemals ein Konflikt/Race mit _fbWriteCharacter.
+function _fbPersistActiveIdx(targetUid, idx) {
+  if (!fbUser || !fbDb) return;
+  fbDb.collection('characters').doc(targetUid).set({
+    activeCharIdx: idx,
+    _lastEditedBy: fbUser.uid,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true }).then(function() {
+    dbgLog('info', 'Aktiver Charakter-Index synchronisiert: ' + idx);
+  }).catch(function(e) {
+    dbgLog('err', 'Aktiver Charakter-Index konnte nicht synchronisiert werden (wird bei Wiederverbindung automatisch nachgeholt)', e);
+  });
+}
+
+// Sendet alle als "dirty" markierten Charaktere erneut (z.B. nach Reconnect
+// oder direkt nach dem Start, falls beim letzten Mal etwas offen blieb).
+function _flushDirty(scopeUid) {
+  if (!fbUser || !fbDb) return;
+  Object.keys(_dirtyChars).forEach(function(key) {
+    if (scopeUid && key.indexOf(scopeUid + ':') !== 0) return;
+    var sep = key.lastIndexOf(':');
+    var uid = key.slice(0, sep);
+    var idx = parseInt(key.slice(sep + 1), 10);
+    var snap = characters[idx];
+    if (!snap) return;
+    dbgLog('warn', 'Sende ausstehende Offline-Änderung erneut (Charakter ' + idx + ')...');
+    _fbWriteCharacter(uid, idx, snap);
   });
 }
 
@@ -3920,18 +3967,18 @@ function fbSave() {
   }
   try {
     var snap = gather();
-    characters[activeCharIdx] = snap;
     var targetUid = (masterEditingPlayer && masterActiveUid) ? masterActiveUid : fbUser.uid;
     var charIdx   = activeCharIdx;
     var key       = _fbKey(targetUid, charIdx);
 
     if (!_hasChanges(snap, _fbLastSaved[key])) {
+      characters[charIdx] = snap;
       dbgLog('info', 'fbSave: keine Änderungen erkannt (Charakter ' + charIdx + ') — nichts zu speichern.');
       return; // Nichts geändert
     }
 
-    dbgLog('info', 'fbSave: Transaktion für characters/' + targetUid + ' — Charakter ' + charIdx + ' geändert');
-    _fbPersistCharacter(targetUid, charIdx, snap, charIdx, fbUser.uid);
+    dbgLog('info', 'fbSave: Charakter ' + charIdx + ' geändert — sende an characters/' + targetUid);
+    _fbWriteCharacter(targetUid, charIdx, snap);
 
   } catch(e) {
     dbgLog('err', 'fbSave() Ausnahme (unerwarteter Fehler vor dem Firestore-Aufruf)', e);
@@ -3954,7 +4001,11 @@ function localSave() {
   try {
     var snap = gather();
     characters[activeCharIdx] = snap;
-    var saveData = { chars: characters.map(function(c){ return c; }), activeCharIdx: activeCharIdx };
+    var saveData = {
+      chars: characters.map(function(c){ return c; }),
+      activeCharIdx: activeCharIdx,
+      dirty: Object.keys(_dirtyChars)
+    };
     _lsSet('dnd_autosave', JSON.stringify(saveData));
   } catch(e) {
     dbgLog('err', 'localSave() fehlgeschlagen — Änderungen konnten nicht einmal lokal gesichert werden', e);
@@ -3976,6 +4027,11 @@ function localLoad() {
         applyData(characters[activeCharIdx]);
       } else {
         applyData(d);
+      }
+      // Offline/nicht bestätigte Änderungen aus dem letzten Lauf wiederherstellen,
+      // damit sie beim nächsten Reconnect zuverlässig nachgesendet werden.
+      if (Array.isArray(d.dirty)) {
+        d.dirty.forEach(function(k){ _dirtyChars[k] = true; });
       }
       buildCharSwitcher();
       return true;
