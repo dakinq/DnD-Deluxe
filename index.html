@@ -4525,8 +4525,22 @@ function _hasActiveFocusedInput() {
 // nicht durch eingehende Cloud-Syncs unterbrochen.
 function _safeApplyFromRemote(charIdx, dataToApply) {
   if (!_hasActiveFocusedInput()) {
-    // Kein Eingabefeld aktiv → sofort übernehmen
-    applyData(dataToApply);
+    // Kein Eingabefeld aktiv → sofort übernehmen, aber hp/temp aus dem
+    // lokalen Stand schützen (JS-Variablen, kein DOM-Input).
+    // BUGFIX: hp/temp werden nach chHP()/chTemp() sofort als JS-Variable
+    // aktualisiert, aber ein eingehendes Remote-Echo (z.B. eigenes
+    // Server-ACK) darf sie nicht zurücksetzen — daher 3-Wege-Merge auch
+    // hier, analog zum blur-Handler unten.
+    var localSnap = gather();
+    var charKey = fbUser ? _fbKey(fbUser.uid, charIdx) : null;
+    var base = (charKey && _fbLastSaved[charKey]) || {};
+    var merged = _mergeChar(base, localSnap, dataToApply);
+    // hp und temp sind JS-Variablen (kein DOM-Input) — immer aus localSnap
+    merged.hp   = localSnap.hp;
+    merged.temp = localSnap.temp;
+    merged.tempHp = localSnap.temp;
+    characters[charIdx] = merged;
+    applyData(merged);
     return;
   }
   // Eingabefeld fokussiert → Übernahme auf blur verschieben, aber sicherstellen,
