@@ -2441,11 +2441,6 @@ function switchChar(i){
   clearTimeout(fbSaveTimer);
   var oldIdx = activeCharIdx;
   var oldSnap = gather();
-  // BUGFIX: gather() enthält kein _rev — alten _rev-Stand übernehmen damit
-  // switchChar ihn nicht auf undefined/0 zurücksetzt.
-  var oldExistingRev = (characters[oldIdx] && characters[oldIdx]._rev) || 0;
-  if (oldExistingRev > 0) { oldSnap._rev = oldExistingRev; }
-  console.log('[STATE WRITE]', { source: 'switchChar/oldIdx', charIdx: oldIdx, oldRev: characters[oldIdx] && characters[oldIdx]._rev, newRev: oldSnap._rev });
   characters[oldIdx] = oldSnap;
   activeCharIdx = i;
   applyData(characters[i]);
@@ -2470,10 +2465,6 @@ function newChar(){
   clearTimeout(fbSaveTimer);
   var oldIdx = activeCharIdx;
   var oldSnap = gather();
-  // BUGFIX: gather() enthält kein _rev — alten _rev-Stand übernehmen.
-  var oldExistingRevNC = (characters[oldIdx] && characters[oldIdx]._rev) || 0;
-  if (oldExistingRevNC > 0) { oldSnap._rev = oldExistingRevNC; }
-  console.log('[STATE WRITE]', { source: 'newChar/oldIdx', charIdx: oldIdx, oldRev: characters[oldIdx] && characters[oldIdx]._rev, newRev: oldSnap._rev });
   characters[oldIdx] = oldSnap;
   if (fbUser && fbDb && !masterViewingReadOnly) {
     var flushUid = (masterEditingPlayer && masterActiveUid) ? masterActiveUid : fbUser.uid;
@@ -2975,6 +2966,8 @@ function initPlayerMode() {
       if (!_playerInitialLoadDone) {
         _playerInitialLoadDone = true;
         try {
+          // TRACE: Rohdaten aus Firestore BEVOR jede Normalisierung/Merge/Render
+          _traceInitialFirestoreData(fbUser.uid, d, doc);
           var isLegacyArray = Array.isArray(d.chars);
           var normChars = _normalizeChars(d.chars);
           if (normChars && normChars.length > 0) {
@@ -2997,6 +2990,8 @@ function initPlayerMode() {
             });
 
             activeCharIdx = _clampIdx(d.activeCharIdx, characters);
+            // TRACE: Normalisierter State nach dirty-Restore, vor applyData/Render
+            _traceNormalizedState('initialLoad/after-dirty-restore');
             applyData(characters[activeCharIdx]);
             characters.forEach(function(c, i) {
               // Für dirty Charaktere den bekannten Cloud-Stand NICHT als "bestätigt"
@@ -3027,6 +3022,7 @@ function initPlayerMode() {
                   }
                   var charsMap = {};
                   freshD.chars.forEach(function(c, i) { charsMap[String(i)] = c; });
+                  _traceWrite('migration/Array→Map/tx.set', fbUser.uid, undefined, 'n/a', 'n/a', 'chars.length=' + freshD.chars.length);
                   tx.set(docRef, { chars: charsMap }, { merge: true });
                   return { alreadyMigrated: false };
                 });
@@ -3147,7 +3143,6 @@ function initPlayerMode() {
           // NUR diesen einen Charakter im lokalen Array ersetzen — alle anderen,
           // auch noch nicht synchronisierte, bleiben unangetastet.
           while (characters.length <= idx) characters.push({});
-          console.log('[STATE WRITE]', { source: 'onSnapshot', charIdx: idx, oldRev: characters[idx] && characters[idx]._rev, newRev: incomingChar._rev });
           characters[idx] = incomingChar;
           _fbLastSaved[charKey] = JSON.parse(JSON.stringify(incomingChar));
           anyApplied = true;
@@ -3199,6 +3194,7 @@ function initPlayerMode() {
               if (!Array.isArray(freshD.chars)) return { alreadyMigrated: true };
               var charsMap2 = {};
               freshD.chars.forEach(function(c, i) { charsMap2[String(i)] = c; });
+              _traceWrite('migration/Array→Map/followup/tx.set', fbUser.uid, undefined, 'n/a', 'n/a', 'chars.length=' + freshD.chars.length);
               tx.set(docRef, { chars: charsMap2 }, { merge: true });
               return { alreadyMigrated: false };
             });
@@ -4046,6 +4042,7 @@ function assignItemToPlayers(itemId, itemData) {
           if (touched.length === 0) return { touched: [] };
           payload['_lastEditedBy'] = fbUser ? fbUser.uid : 'master';
           payload['updatedAt'] = firebase.firestore.FieldValue.serverTimestamp();
+          _traceWrite('assignItemToPlayers/tx.set', playerId, touched.join(','), 'n/a', 'n/a', 'items-only patch');
           tx.set(docRef, payload, { merge: true });
           return { touched: touched };
         });
@@ -4119,6 +4116,127 @@ function escHtml(s) {
 
 var _fbLastSaved = {}; // "uid:charIdx" → zuletzt bestätigter Firestore-Stand (ohne _rev, s. _canonicalJSON)
 var _dirtyChars  = {}; // "uid:charIdx" → { snap, baseRev } solange eine lokale Änderung noch nicht bestätigt wurde
+
+// ═══════════════════════════════════════════════════════════════════
+// DEBUG TRACE — NUR LOGGING, KEIN FUNKTIONALER CODE
+// ═══════════════════════════════════════════════════════════════════
+
+// Gibt einen kompakten Charakter-Summary aus (rev + HP + TempHP + Name)
+function _traceCharSummary(c, label) {
+  if (!c) return label + ' = NULL';
+  return label + ' rev=' + (c._rev !== undefined ? c._rev : 'UNDEFINED') +
+    ' hp=' + (c.hp !== undefined ? c.hp : '?') +
+    ' temp=' + (c.temp !== undefined ? c.temp : (c.tempHp !== undefined ? c.tempHp : '?')) +
+    ' name=' + (c.charName || '?');
+}
+
+// Liest das Firestore-Dokument DIREKT (getDoc, kein Cache soweit möglich)
+// und loggt den vollständigen chars-Stand. Nur Logging, kein Schreiben.
+function _fsVerifyAfterSave(uid, source) {
+  if (!fbDb) { console.warn('[VERIFY] fbDb nicht verfügbar'); return; }
+  var docRef = fbDb.collection('characters').doc(uid);
+  // get() nutzt den Firestore-Cache wenn offline; fromCache zeigt die Quelle.
+  docRef.get().then(function(snap) {
+    var fromCache = snap.metadata && snap.metadata.fromCache;
+    var d = snap.exists ? snap.data() : null;
+    var charsRaw = d ? d.chars : null;
+    var charsType = Array.isArray(charsRaw) ? 'ARRAY' : (charsRaw && typeof charsRaw === 'object' ? 'MAP' : 'NONE/NULL');
+    var normChars = _normalizeChars(charsRaw);
+    var lines = [
+      '[VERIFY AFTER SAVE] source=' + source,
+      '  path=characters/' + uid,
+      '  exists=' + snap.exists,
+      '  fromCache=' + (fromCache ? 'YES (IndexedDB/Offline-Cache)' : 'NO (Server)'),
+      '  chars type=' + charsType,
+    ];
+    if (normChars) {
+      for (var i = 0; i < normChars.length; i++) {
+        lines.push('  ' + _traceCharSummary(normChars[i], 'char ' + i));
+      }
+    } else {
+      lines.push('  chars = ' + JSON.stringify(charsRaw));
+    }
+    console.log(lines.join('\n'));
+    dbgLog('info', lines.join(' | '));
+  }).catch(function(e) {
+    console.error('[VERIFY AFTER SAVE] getDoc fehlgeschlagen:', e);
+    dbgLog('err', '[VERIFY AFTER SAVE] getDoc fehlgeschlagen: ' + e);
+  });
+}
+
+// Loggt jeden Firestore-Write (source, path, was wird geschrieben)
+function _traceWrite(source, uid, charIdx, oldRev, newRev, extra) {
+  var msg = '[FS WRITE START] source=' + source +
+    ' path=characters/' + uid +
+    (charIdx !== undefined ? ' charIdx=' + charIdx : '') +
+    ' oldRev=' + oldRev + ' newRev=' + newRev +
+    (extra ? ' ' + extra : '');
+  console.log(msg);
+  dbgLog('info', msg);
+}
+function _traceWriteSuccess(source, uid, charIdx, newRev) {
+  var msg = '[FS WRITE SUCCESS] source=' + source +
+    ' path=characters/' + uid +
+    (charIdx !== undefined ? ' charIdx=' + charIdx : '') +
+    ' newRev=' + newRev;
+  console.log(msg);
+  dbgLog('info', msg);
+}
+
+// Loggt den Firestore-Stand beim Initial-Load (BEVOR jede Normalisierung/Merge)
+function _traceInitialFirestoreData(uid, d, snap) {
+  var fromCache = snap && snap.metadata && snap.metadata.fromCache;
+  var charsRaw = d ? d.chars : null;
+  var charsType = Array.isArray(charsRaw) ? 'ARRAY' : (charsRaw && typeof charsRaw === 'object' ? 'MAP' : 'NONE/NULL');
+  var normChars = _normalizeChars(charsRaw);
+  var lines = [
+    '[INITIAL FIRESTORE DATA]',
+    '  path=characters/' + uid,
+    '  exists=' + !!(d),
+    '  fromCache=' + (fromCache ? 'YES (IndexedDB/Offline-Cache)' : 'NO (Server)'),
+    '  chars type=' + charsType,
+    '  activeCharIdx (raw)=' + (d ? d.activeCharIdx : 'N/A'),
+  ];
+  if (normChars) {
+    for (var i = 0; i < normChars.length; i++) {
+      lines.push('  ' + _traceCharSummary(normChars[i], 'char ' + i));
+    }
+  } else {
+    lines.push('  chars (raw)=' + JSON.stringify(charsRaw));
+  }
+  console.log(lines.join('\n'));
+  dbgLog('info', lines.join(' | '));
+}
+
+// Loggt den localStorage-Stand beim localLoad
+function _traceLocalLoadData(d) {
+  var lines = ['[LOCAL LOAD]'];
+  if (!d) { lines.push('  kein localStorage-Eintrag'); console.log(lines.join('\n')); dbgLog('info', lines.join(' | ')); return; }
+  var chars = d.chars || d.characters;
+  lines.push('  activeCharIdx=' + d.activeCharIdx);
+  lines.push('  dirtyKeys=' + JSON.stringify(Object.keys(d.dirty || {})));
+  if (chars) {
+    for (var i = 0; i < chars.length; i++) {
+      lines.push('  ' + _traceCharSummary(chars[i], 'char ' + i));
+    }
+  } else {
+    lines.push('  chars=NULL (altes Format)');
+  }
+  console.log(lines.join('\n'));
+  dbgLog('info', lines.join(' | '));
+}
+
+// Loggt den normalisierten State nach dem Laden (nach _normalizeChars, vor render)
+function _traceNormalizedState(source) {
+  var lines = ['[NORMALIZED STATE] after=' + source];
+  lines.push('  activeCharIdx=' + activeCharIdx);
+  for (var i = 0; i < characters.length; i++) {
+    lines.push('  ' + _traceCharSummary(characters[i], 'char ' + i));
+  }
+  console.log(lines.join('\n'));
+  dbgLog('info', lines.join(' | '));
+}
+// ═══════════════════════════════════════════════════════════════════
 
 function _fbKey(uid, idx) {
   return uid + ':' + idx;
@@ -4229,7 +4347,6 @@ function _fbWriteCharacter(targetUid, charIdx, rawSnap, onDone, _attempt, _expec
   // Revision markieren, BEVOR der Netzwerk-Versuch überhaupt startet.
   // Wir merken uns den Dirty-Zeitstempel (writeTs), damit der .then()-Handler
   // erkennt ob zwischenzeitlich weitere Nutzeränderungen aufgetreten sind.
-  console.log('[STATE WRITE]', { source: '_fbWriteCharacter/optimistic', charIdx: charIdx, oldRev: characters[charIdx] && characters[charIdx]._rev, newRev: expectedRev + 1 });
   characters[charIdx] = Object.assign({}, rawSnap, { _rev: expectedRev + 1 });
   var writeTs = Date.now();
   _markDirty(targetUid, charIdx, rawSnap, expectedRev, writeTs);
@@ -4258,10 +4375,16 @@ function _fbWriteCharacter(targetUid, charIdx, rawSnap, onDone, _attempt, _expec
       payload[fieldPath] = newChar;
       payload['_lastEditedBy'] = fbUser.uid;
       payload['updatedAt'] = firebase.firestore.FieldValue.serverTimestamp();
+      // TRACE: Was wird in Firestore geschrieben?
+      _traceWrite('_fbWriteCharacter/tx.set', targetUid, charIdx,
+        serverRev, newChar._rev,
+        'hp=' + newChar.hp + ' temp=' + (newChar.temp !== undefined ? newChar.temp : newChar.tempHp));
       tx.set(docRef, payload, { merge: true });
       return newChar;
     });
   }).then(function(newChar) {
+    // TRACE: Firestore-ACK erhalten (Transaktion bestätigt)
+    _traceWriteSuccess('_fbWriteCharacter/.then', targetUid, charIdx, newChar._rev);
     // BUGFIX: Nicht blind characters[charIdx] = newChar setzen.
     // In der Netzwerklatenz zwischen Senden und ACK kann der Nutzer weitere
     // Änderungen gemacht haben — _markDirty wurde dann erneut aufgerufen und
@@ -4270,13 +4393,11 @@ function _fbWriteCharacter(targetUid, charIdx, rawSnap, onDone, _attempt, _expec
     var dirtyEntry = _dirtyChars[key];
     if (dirtyEntry && dirtyEntry.ts > writeTs) {
       // Neuere lokale Änderung vorhanden — _rev aktualisieren, Snapshot schützen
-      console.log('[STATE WRITE]', { source: '_fbWriteCharacter.then/dirtyProtect', charIdx: charIdx, oldRev: characters[charIdx] && characters[charIdx]._rev, newRev: newChar._rev });
       characters[charIdx] = Object.assign({}, dirtyEntry.snap, { _rev: newChar._rev });
       dirtyEntry.baseRev = newChar._rev; // für nächsten Schreibversuch
       dbgLog('warn', 'Speichern bestätigt (Charakter ' + charIdx + ', rev ' + newChar._rev + ') — neuere lokale Änderung vorhanden, Snapshot geschützt.');
     } else {
       // Kein neuerer Stand — Server-ACK ist auch der neueste lokale Stand
-      console.log('[STATE WRITE]', { source: '_fbWriteCharacter.then/serverAck', charIdx: charIdx, oldRev: characters[charIdx] && characters[charIdx]._rev, newRev: newChar._rev });
       characters[charIdx] = newChar;
     }
     _clearDirty(targetUid, charIdx, writeTs);
@@ -4290,6 +4411,8 @@ function _fbWriteCharacter(targetUid, charIdx, rawSnap, onDone, _attempt, _expec
     // Der _rev-Wert von newChar ist bereits in characters[charIdx] gespeichert
     // und wird beim nächsten gather()/fbSave() automatisch verwendet.
     dbgLog('ok', 'Speichern erfolgreich (Charakter ' + charIdx + ', doc: characters/' + targetUid + ', rev ' + newChar._rev + ')');
+    // VERIFY: Sofort nach ACK den tatsächlichen Firestore-Stand per getDoc() lesen
+    _fsVerifyAfterSave(targetUid, '_fbWriteCharacter charIdx=' + charIdx);
     if (onDone) onDone(true);
   }).catch(function(e) {
     if (e && e.code === 'rev-conflict') {
@@ -4326,6 +4449,7 @@ function _fbWriteCharacter(targetUid, charIdx, rawSnap, onDone, _attempt, _expec
 // bei einem laufenden Live-Update (siehe initPlayerMode()).
 function _fbPersistActiveIdx(targetUid, idx) {
   if (!fbUser || !fbDb) return;
+  _traceWrite('_fbPersistActiveIdx/.set', targetUid, undefined, 'n/a', 'n/a', 'activeCharIdx=' + idx + ' (NUR Index-Feld, kein chars-Inhalt)');
   fbDb.collection('characters').doc(targetUid).set({
     activeCharIdx: idx,
     _lastEditedBy: fbUser.uid,
@@ -4370,6 +4494,9 @@ function _flushDirty(scopeUid) {
     } else {
       dbgLog('warn', 'Sende ausstehende Offline-Änderung erneut (Charakter ' + idx + ')...');
     }
+    _traceWrite('_flushDirty/_fbWriteCharacter', uid, idx,
+      entry.baseRev, entry.baseRev + 1,
+      'snapToSend hp=' + snapToSend.hp + ' snap._rev=' + entry.snap._rev + ' baseRev=' + entry.baseRev);
     _fbWriteCharacter(uid, idx, snapToSend, null, 0, entry.baseRev);
   });
 }
@@ -4418,6 +4545,7 @@ function _fbDeleteCharacter(targetUid, deleteIdx, onDone) {
       payload['chars.' + (chars.length - 1)] = firebase.firestore.FieldValue.delete();
       payload['_lastEditedBy'] = fbUser.uid;
       payload['updatedAt'] = firebase.firestore.FieldValue.serverTimestamp();
+      _traceWrite('_fbDeleteCharacter/tx.set', targetUid, deleteIdx, 'n/a', 'DELETED', 'remaining=' + remaining.length);
       tx.set(docRef, payload, { merge: true });
       return { alreadyGone: false, newLength: remaining.length };
     });
@@ -4483,10 +4611,6 @@ function fbSave(onDone) {
     var key       = _fbKey(targetUid, charIdx);
 
     if (!_hasChanges(snap, _fbLastSaved[key])) {
-      // BUGFIX: gather() enthält kein _rev — bestehenden _rev-Wert erhalten.
-      var existingRevFbSave = (characters[charIdx] && characters[charIdx]._rev) || 0;
-      if (existingRevFbSave > 0) { snap._rev = existingRevFbSave; }
-      console.log('[STATE WRITE]', { source: 'fbSave/noChange', charIdx: charIdx, oldRev: characters[charIdx] && characters[charIdx]._rev, newRev: snap._rev });
       characters[charIdx] = snap;
       dbgLog('info', 'fbSave: keine Änderungen erkannt (Charakter ' + charIdx + ') — nichts zu speichern.');
       if (onDone) onDone(true); // nichts zu tun zählt als "abgeschlossen"
@@ -4507,17 +4631,6 @@ function fbSave(onDone) {
 function localSave() {
   try {
     var snap = gather();
-    // BUGFIX: gather() kennt _rev nicht und gibt es nie zurück.
-    // Wenn wir hier blind characters[activeCharIdx] = snap schreiben,
-    // wird der korrekte _rev-Wert (z.B. 1 nach einem Save) auf undefined/0
-    // zurückgesetzt — das ist die Ursache des "rev 0"-Bugs nach erfolgreichem Save.
-    // Lösung: _rev aus dem bestehenden Eintrag übernehmen, sofern er vorhanden
-    // und höher als 0 ist. gather() darf den _rev-Stand NIEMALS erniedrigen.
-    var existingRev = (characters[activeCharIdx] && characters[activeCharIdx]._rev) || 0;
-    if (existingRev > 0) {
-      snap._rev = existingRev;
-    }
-    console.log('[STATE WRITE]', { source: 'localSave', charIdx: activeCharIdx, oldRev: characters[activeCharIdx] && characters[activeCharIdx]._rev, newRev: snap._rev });
     characters[activeCharIdx] = snap;
     var saveData = {
       chars: characters.map(function(c){ return c; }),
@@ -4536,13 +4649,19 @@ function localLoad() {
     var raw = _lsGet('dnd_autosave');
     if (raw) {
       var d = JSON.parse(raw);
+      // TRACE: localStorage-Stand BEVOR characters[] überschrieben wird
+      _traceLocalLoadData(d);
       if (d.chars && d.chars.length > 0) {
         characters = d.chars;
         activeCharIdx = _clampIdx(d.activeCharIdx, characters);
+        // TRACE: nach characters-Zuweisung aus localStorage
+        _traceNormalizedState('localLoad/d.chars');
         applyData(characters[activeCharIdx]);
       } else if (d.characters && d.characters.length > 0) {
         characters = d.characters;
         activeCharIdx = _clampIdx(d.activeCharIdx, characters);
+        // TRACE: nach characters-Zuweisung aus localStorage (altes Format)
+        _traceNormalizedState('localLoad/d.characters');
         applyData(characters[activeCharIdx]);
       } else {
         applyData(d);
@@ -4623,13 +4742,6 @@ function _safeApplyFromRemote(charIdx, dataToApply) {
     merged.hp   = localSnap.hp;
     merged.temp = localSnap.temp;
     merged.tempHp = localSnap.temp;
-    // BUGFIX: _mergeChar setzt _rev aus "theirs" (dataToApply). Wenn aber der
-    // lokale characters[]-Stand bereits eine höhere Revision hat (z.B. durch
-    // einen gerade abgeschlossenen Save), darf _rev NICHT zurückgesetzt werden.
-    var localRevSAFR = (characters[charIdx] && characters[charIdx]._rev) || 0;
-    var incomingRevSAFR = (dataToApply && dataToApply._rev) || 0;
-    merged._rev = Math.max(localRevSAFR, incomingRevSAFR);
-    console.log('[STATE WRITE]', { source: '_safeApplyFromRemote/immediate', charIdx: charIdx, oldRev: localRevSAFR, newRev: merged._rev });
     characters[charIdx] = merged;
     applyData(merged);
     return;
@@ -4666,11 +4778,6 @@ function _safeApplyFromRemote(charIdx, dataToApply) {
       merged.hp = localSnap.hp;
       merged.temp = localSnap.temp;
       merged.tempHp = localSnap.temp;
-      // BUGFIX: _rev aus lokalem Stand schützen wenn höher als eingehender Stand.
-      var localRevBlur = (characters[pending.charIdx] && characters[pending.charIdx]._rev) || 0;
-      var incomingRevBlur = (pending.data && pending.data._rev) || 0;
-      merged._rev = Math.max(localRevBlur, incomingRevBlur);
-      console.log('[STATE WRITE]', { source: '_safeApplyFromRemote/blur', charIdx: pending.charIdx, oldRev: localRevBlur, newRev: merged._rev });
       characters[pending.charIdx] = merged;
       applyData(merged);
       dbgLog('info', 'Verzögertes Remote-Update für Charakter ' + pending.charIdx + ' nach Fokus-Verlust per 3-Wege-Merge übernommen.');
