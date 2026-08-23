@@ -2992,18 +2992,39 @@ function initPlayerMode() {
                   var charsMap = {};
                   freshD.chars.forEach(function(c, i) { charsMap[String(i)] = c; });
                   tx.set(docRef, { chars: charsMap }, { merge: true });
-                  return { alreadyMigrated: false };
+                  return { alreadyMigrated: false, charsMap: charsMap };
                 });
               }).then(function(result) {
                 dbgLog('ok', result.alreadyMigrated
                   ? 'Migration übersprungen — ein anderes Gerät hatte bereits migriert.'
                   : 'Migration zu Map-Format erfolgreich.');
+                // BUGFIX Race Condition: _fbLastSaved auf den tatsächlich migrierten
+                // Serverstand aktualisieren, damit spätere Saves nicht mit rev 0 kollidieren.
+                if (!result.alreadyMigrated && result.charsMap) {
+                  var _mUid = fbUser.uid;
+                  Object.keys(result.charsMap).forEach(function(k) {
+                    var _mI = parseInt(k, 10);
+                    var _mKey = _fbKey(_mUid, _mI);
+                    if (!_isDirty(_mUid, _mI)) {
+                      _fbLastSaved[_mKey] = JSON.parse(JSON.stringify(result.charsMap[k]));
+                    }
+                  });
+                }
+                // Erst NACH vollständigem Abschluss der Migration Saves starten.
+                // Promise garantiert die Reihenfolge — kein setTimeout(), kein Parallel-Flush.
+                _flushDirty(fbUser.uid);
+                _flushPendingDeletes(fbUser.uid);
               }).catch(function(e) {
-                dbgLog('err', 'Migration zu Map-Format fehlgeschlagen (Daten bleiben im alten Format nutzbar)', e);
+                dbgLog('err', 'Migration zu Map-Format fehlgeschlagen (Daten bleiben im alten Format nutzbar). Flush wird trotzdem versucht.', e);
+                // Auch bei fehlgeschlagener Migration dirty-Einträge nicht verloren gehen lassen.
+                _flushDirty(fbUser.uid);
+                _flushPendingDeletes(fbUser.uid);
               });
+            } else {
+              // Kein altes Array-Format — direkt flushen (keine Migration nötig).
+              _flushDirty(fbUser.uid); // etwaige Offline-Änderungen von vor einem Neustart nachsenden
+              _flushPendingDeletes(fbUser.uid); // etwaige Offline-Löschungen von vor einem Neustart nachsenden
             }
-            _flushDirty(fbUser.uid); // etwaige Offline-Änderungen von vor einem Neustart nachsenden
-            _flushPendingDeletes(fbUser.uid); // etwaige Offline-Löschungen von vor einem Neustart nachsenden
           } else {
             // Dokument existiert, aber weder Array noch Map mit chars (ältestes Format:
             // Dokument selbst war der einzige Charakter). Übernehmen und als Charakter 0 anlegen.
