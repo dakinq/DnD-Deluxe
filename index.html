@@ -2441,6 +2441,11 @@ function switchChar(i){
   clearTimeout(fbSaveTimer);
   var oldIdx = activeCharIdx;
   var oldSnap = gather();
+  // BUGFIX: gather() enthält kein _rev — alten _rev-Stand übernehmen damit
+  // switchChar ihn nicht auf undefined/0 zurücksetzt.
+  var oldExistingRev = (characters[oldIdx] && characters[oldIdx]._rev) || 0;
+  if (oldExistingRev > 0) { oldSnap._rev = oldExistingRev; }
+  console.log('[STATE WRITE]', { source: 'switchChar/oldIdx', charIdx: oldIdx, oldRev: characters[oldIdx] && characters[oldIdx]._rev, newRev: oldSnap._rev });
   characters[oldIdx] = oldSnap;
   activeCharIdx = i;
   applyData(characters[i]);
@@ -2465,6 +2470,10 @@ function newChar(){
   clearTimeout(fbSaveTimer);
   var oldIdx = activeCharIdx;
   var oldSnap = gather();
+  // BUGFIX: gather() enthält kein _rev — alten _rev-Stand übernehmen.
+  var oldExistingRevNC = (characters[oldIdx] && characters[oldIdx]._rev) || 0;
+  if (oldExistingRevNC > 0) { oldSnap._rev = oldExistingRevNC; }
+  console.log('[STATE WRITE]', { source: 'newChar/oldIdx', charIdx: oldIdx, oldRev: characters[oldIdx] && characters[oldIdx]._rev, newRev: oldSnap._rev });
   characters[oldIdx] = oldSnap;
   if (fbUser && fbDb && !masterViewingReadOnly) {
     var flushUid = (masterEditingPlayer && masterActiveUid) ? masterActiveUid : fbUser.uid;
@@ -3138,6 +3147,7 @@ function initPlayerMode() {
           // NUR diesen einen Charakter im lokalen Array ersetzen — alle anderen,
           // auch noch nicht synchronisierte, bleiben unangetastet.
           while (characters.length <= idx) characters.push({});
+          console.log('[STATE WRITE]', { source: 'onSnapshot', charIdx: idx, oldRev: characters[idx] && characters[idx]._rev, newRev: incomingChar._rev });
           characters[idx] = incomingChar;
           _fbLastSaved[charKey] = JSON.parse(JSON.stringify(incomingChar));
           anyApplied = true;
@@ -4219,6 +4229,7 @@ function _fbWriteCharacter(targetUid, charIdx, rawSnap, onDone, _attempt, _expec
   // Revision markieren, BEVOR der Netzwerk-Versuch überhaupt startet.
   // Wir merken uns den Dirty-Zeitstempel (writeTs), damit der .then()-Handler
   // erkennt ob zwischenzeitlich weitere Nutzeränderungen aufgetreten sind.
+  console.log('[STATE WRITE]', { source: '_fbWriteCharacter/optimistic', charIdx: charIdx, oldRev: characters[charIdx] && characters[charIdx]._rev, newRev: expectedRev + 1 });
   characters[charIdx] = Object.assign({}, rawSnap, { _rev: expectedRev + 1 });
   var writeTs = Date.now();
   _markDirty(targetUid, charIdx, rawSnap, expectedRev, writeTs);
@@ -4259,11 +4270,13 @@ function _fbWriteCharacter(targetUid, charIdx, rawSnap, onDone, _attempt, _expec
     var dirtyEntry = _dirtyChars[key];
     if (dirtyEntry && dirtyEntry.ts > writeTs) {
       // Neuere lokale Änderung vorhanden — _rev aktualisieren, Snapshot schützen
+      console.log('[STATE WRITE]', { source: '_fbWriteCharacter.then/dirtyProtect', charIdx: charIdx, oldRev: characters[charIdx] && characters[charIdx]._rev, newRev: newChar._rev });
       characters[charIdx] = Object.assign({}, dirtyEntry.snap, { _rev: newChar._rev });
       dirtyEntry.baseRev = newChar._rev; // für nächsten Schreibversuch
       dbgLog('warn', 'Speichern bestätigt (Charakter ' + charIdx + ', rev ' + newChar._rev + ') — neuere lokale Änderung vorhanden, Snapshot geschützt.');
     } else {
       // Kein neuerer Stand — Server-ACK ist auch der neueste lokale Stand
+      console.log('[STATE WRITE]', { source: '_fbWriteCharacter.then/serverAck', charIdx: charIdx, oldRev: characters[charIdx] && characters[charIdx]._rev, newRev: newChar._rev });
       characters[charIdx] = newChar;
     }
     _clearDirty(targetUid, charIdx, writeTs);
@@ -4470,6 +4483,10 @@ function fbSave(onDone) {
     var key       = _fbKey(targetUid, charIdx);
 
     if (!_hasChanges(snap, _fbLastSaved[key])) {
+      // BUGFIX: gather() enthält kein _rev — bestehenden _rev-Wert erhalten.
+      var existingRevFbSave = (characters[charIdx] && characters[charIdx]._rev) || 0;
+      if (existingRevFbSave > 0) { snap._rev = existingRevFbSave; }
+      console.log('[STATE WRITE]', { source: 'fbSave/noChange', charIdx: charIdx, oldRev: characters[charIdx] && characters[charIdx]._rev, newRev: snap._rev });
       characters[charIdx] = snap;
       dbgLog('info', 'fbSave: keine Änderungen erkannt (Charakter ' + charIdx + ') — nichts zu speichern.');
       if (onDone) onDone(true); // nichts zu tun zählt als "abgeschlossen"
@@ -4490,6 +4507,17 @@ function fbSave(onDone) {
 function localSave() {
   try {
     var snap = gather();
+    // BUGFIX: gather() kennt _rev nicht und gibt es nie zurück.
+    // Wenn wir hier blind characters[activeCharIdx] = snap schreiben,
+    // wird der korrekte _rev-Wert (z.B. 1 nach einem Save) auf undefined/0
+    // zurückgesetzt — das ist die Ursache des "rev 0"-Bugs nach erfolgreichem Save.
+    // Lösung: _rev aus dem bestehenden Eintrag übernehmen, sofern er vorhanden
+    // und höher als 0 ist. gather() darf den _rev-Stand NIEMALS erniedrigen.
+    var existingRev = (characters[activeCharIdx] && characters[activeCharIdx]._rev) || 0;
+    if (existingRev > 0) {
+      snap._rev = existingRev;
+    }
+    console.log('[STATE WRITE]', { source: 'localSave', charIdx: activeCharIdx, oldRev: characters[activeCharIdx] && characters[activeCharIdx]._rev, newRev: snap._rev });
     characters[activeCharIdx] = snap;
     var saveData = {
       chars: characters.map(function(c){ return c; }),
@@ -4595,6 +4623,13 @@ function _safeApplyFromRemote(charIdx, dataToApply) {
     merged.hp   = localSnap.hp;
     merged.temp = localSnap.temp;
     merged.tempHp = localSnap.temp;
+    // BUGFIX: _mergeChar setzt _rev aus "theirs" (dataToApply). Wenn aber der
+    // lokale characters[]-Stand bereits eine höhere Revision hat (z.B. durch
+    // einen gerade abgeschlossenen Save), darf _rev NICHT zurückgesetzt werden.
+    var localRevSAFR = (characters[charIdx] && characters[charIdx]._rev) || 0;
+    var incomingRevSAFR = (dataToApply && dataToApply._rev) || 0;
+    merged._rev = Math.max(localRevSAFR, incomingRevSAFR);
+    console.log('[STATE WRITE]', { source: '_safeApplyFromRemote/immediate', charIdx: charIdx, oldRev: localRevSAFR, newRev: merged._rev });
     characters[charIdx] = merged;
     applyData(merged);
     return;
@@ -4631,6 +4666,11 @@ function _safeApplyFromRemote(charIdx, dataToApply) {
       merged.hp = localSnap.hp;
       merged.temp = localSnap.temp;
       merged.tempHp = localSnap.temp;
+      // BUGFIX: _rev aus lokalem Stand schützen wenn höher als eingehender Stand.
+      var localRevBlur = (characters[pending.charIdx] && characters[pending.charIdx]._rev) || 0;
+      var incomingRevBlur = (pending.data && pending.data._rev) || 0;
+      merged._rev = Math.max(localRevBlur, incomingRevBlur);
+      console.log('[STATE WRITE]', { source: '_safeApplyFromRemote/blur', charIdx: pending.charIdx, oldRev: localRevBlur, newRev: merged._rev });
       characters[pending.charIdx] = merged;
       applyData(merged);
       dbgLog('info', 'Verzögertes Remote-Update für Charakter ' + pending.charIdx + ' nach Fokus-Verlust per 3-Wege-Merge übernommen.');
