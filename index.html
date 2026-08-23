@@ -616,7 +616,7 @@ body.master-mode { padding-top: 58px; }
       <div class="bar-wrap">
         <div class="hp-row">
           <span class="hp-label-text">Leben</span>
-          <span><span class="hp-number" id="hpNum">23</span><span class="hp-sep">/</span><input class="hp-max-in" id="maxHp" value="56" type="number" oninput="renderBars()"></span>
+          <span><span class="hp-number" id="hpNum">23</span><span class="hp-sep">/</span><input class="hp-max-in" id="maxHp" value="56" type="number" oninput="renderBars();autoSave();"></span>
         </div>
         <div class="bar"><div class="fill" id="hpFill"></div></div>
         <div class="hp-ctrl">
@@ -2913,7 +2913,31 @@ function initPlayerMode() {
       // Beim ersten Laden immer die Daten anwenden UND activeCharIdx aus der
       // Cloud übernehmen — das ist der EINZIGE Zeitpunkt, an dem das passiert.
       // Danach ist activeCharIdx rein lokaler Gerätezustand.
+      //
+      // BUGFIX Safari/iPhone PWA: Safari liefert beim Start zuerst einen
+      // Cache-Snapshot (fromCache: true) und dann den echten Server-Stand.
+      // Wir warten auf den Server-Stand, bevor wir _playerInitialLoadDone setzen
+      // und _fbLastSaved befüllen — sonst werden eigene Änderungen, die der
+      // Nutzer in der kurzen Lücke macht, fälschlich als "keine Änderung" erkannt.
+      var isFromCache = doc.metadata && doc.metadata.fromCache;
       if (!_playerInitialLoadDone) {
+        if (isFromCache) {
+          // Noch nicht den echten Server-Stand — UI trotzdem schon befüllen
+          // (damit der Nutzer nicht auf einem leeren Bogen sitzt), aber
+          // _playerInitialLoadDone NOCH NICHT setzen und _fbLastSaved NICHT
+          // befüllen. Beim nächsten Snapshot (Server-Stand) wird alles korrekt
+          // gesetzt und _fbLastSaved stimmt mit dem echten Stand überein.
+          try {
+            var normCharsCache = _normalizeChars(d.chars);
+            if (normCharsCache && normCharsCache.length > 0) {
+              characters = normCharsCache;
+              activeCharIdx = _clampIdx(d.activeCharIdx, characters);
+              applyData(characters[activeCharIdx]);
+              buildCharSwitcher();
+            }
+          } catch(e) { /* UI-Vorschau fehlgeschlagen — kein Problem, Server-Stand kommt gleich */ }
+          return; // Auf echten Server-Stand warten
+        }
         _playerInitialLoadDone = true;
         try {
           var isLegacyArray = Array.isArray(d.chars);
