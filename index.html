@@ -2889,7 +2889,16 @@ function initPlayerMode() {
     if (_rawAtStart) {
       var _parsedAtStart = JSON.parse(_rawAtStart);
       if (_parsedAtStart.dirty && typeof _parsedAtStart.dirty === 'object') {
-        Object.keys(_parsedAtStart.dirty).forEach(function(k){ _dirtyChars[k] = _parsedAtStart.dirty[k]; });
+        Object.keys(_parsedAtStart.dirty).forEach(function(k){
+          var entry = _parsedAtStart.dirty[k];
+          // Gen-Feld für aus localStorage geladene Einträge sicherstellen
+          // (ältere Versionen haben kein gen-Feld gespeichert).
+          if (entry && typeof entry.gen !== 'number') {
+            _dirtyGen++;
+            entry = Object.assign({}, entry, { gen: _dirtyGen });
+          }
+          _dirtyChars[k] = entry;
+        });
       }
       if (_parsedAtStart.pendingDeletes && typeof _parsedAtStart.pendingDeletes === 'object') {
         Object.keys(_parsedAtStart.pendingDeletes).forEach(function(uid){ _pendingCharDeletes[uid] = _parsedAtStart.pendingDeletes[uid]; });
@@ -3039,6 +3048,26 @@ function initPlayerMode() {
           var incomingRev = incomingChar._rev || 0;
           if (incomingRev < localRev) {
             dbgLog('warn', 'Älterer Cloud-Stand für Charakter ' + idx + ' (rev ' + incomingRev + ' < lokal ' + localRev + ') ignoriert.');
+            continue;
+          }
+
+          // BUG-FIX: Auch wenn incomingRev === localRev kann der lokale Stand
+          // neuer sein: Das passiert, wenn wir diesen Snapshot bereits per
+          // _fbLastSaved kennen (d.h. wir haben ihn selbst geschrieben und
+          // bestätigt bekommen), der Nutzer aber DANACH bereits weitere lokale
+          // Änderungen vorgenommen hat (z.B. Temp HP nach dem HP-Save).
+          // In diesem Fall hat der lokale Stand Vorrang — der eingehende Snapshot
+          // ist identisch mit unserem letzten bestätigten Stand, aber der lokale
+          // characters[]-Eintrag enthält bereits neuere Änderungen.
+          var lastSavedEntry = _fbLastSaved[_fbKey(fbUser.uid, idx)];
+          if (lastSavedEntry && incomingRev === (lastSavedEntry._rev || 0)) {
+            // Dieser Snapshot ist unser eigener, bereits bestätigter Stand —
+            // der lokale characters[]-Eintrag kann aber schon neuer sein.
+            // Nur übernehmen wenn der lokale Stand wirklich gleich ist.
+            if (_canonicalJSON(incomingChar) === _canonicalJSON(localChar)) continue;
+            // Lokaler Stand weicht ab: lokaler Stand ist neuer (Nutzer hat nach
+            // dem Save weitere Änderungen gemacht). Nicht überschreiben.
+            dbgLog('warn', 'Cloud-Snapshot für Charakter ' + idx + ' (rev ' + incomingRev + ') ist unser eigener bestätigter Stand, aber lokaler Stand ist bereits neuer — ignoriert.');
             continue;
           }
 
@@ -4018,20 +4047,42 @@ function escHtml(s) {
 //    Offline-Warteschlange, u.a. für den Fall, dass die Antwort verloren ging).
 
 var _fbLastSaved = {}; // "uid:charIdx" → zuletzt bestätigter Firestore-Stand (ohne _rev, s. _canonicalJSON)
-var _dirtyChars  = {}; // "uid:charIdx" → { snap, baseRev } solange eine lokale Änderung noch nicht bestätigt wurde
+var _dirtyChars  = {}; // "uid:charIdx" → { snap, baseRev, gen } solange eine lokale Änderung noch nicht bestätigt wurde
 
 function _fbKey(uid, idx) {
   return uid + ':' + idx;
 }
+
+// Monoton steigende Generationszahl pro dirty-Eintrag. Damit kann _clearDirty
+// prüfen, ob zwischen dem Start des Schreibvorgangs und seinem ACK ein neuerer
+// _markDirty-Aufruf stattgefunden hat (d.h. der Nutzer hat weitere Änderungen
+// gemacht). In diesem Fall darf _clearDirty den Eintrag NICHT löschen —
+// andernfalls würde die neuere, noch nicht gesendete Änderung verloren gehen.
+var _dirtyGen = 0;
 
 // Ein "dirty"-Eintrag trägt nicht nur ein Flag, sondern den tatsächlich noch zu
 // sichernden Snapshot UND die Revision, auf der er beruht — so kann er auch
 // nach einem App-Neustart (ohne aktivierte Firestore-Offline-Persistenz)
 // zuverlässig und konfliktsicher nachgesendet werden.
 function _markDirty(uid, idx, snap, baseRev) {
-  _dirtyChars[_fbKey(uid, idx)] = { snap: snap, baseRev: baseRev || 0 };
+  _dirtyGen++;
+  _dirtyChars[_fbKey(uid, idx)] = { snap: snap, baseRev: baseRev || 0, gen: _dirtyGen };
+  return _dirtyGen; // gibt die Generation zurück, damit _clearDirty sie prüfen kann
 }
-function _clearDirty(uid, idx) { delete _dirtyChars[_fbKey(uid, idx)]; }
+// Löscht den dirty-Eintrag nur, wenn er noch zur erwarteten Generation gehört
+// (kein neuerer _markDirty hat ihn seitdem überschrieben).
+function _clearDirty(uid, idx, expectedGen) {
+  var key = _fbKey(uid, idx);
+  var entry = _dirtyChars[key];
+  if (!entry) return; // bereits gelöscht
+  if (typeof expectedGen === 'number' && entry.gen !== expectedGen) {
+    // Eine neuere Änderung hat _markDirty erneut aufgerufen — dieser Eintrag
+    // ist aktueller als der gerade bestätigte Schreibvorgang. Nicht löschen!
+    dbgLog('warn', 'Charakter ' + idx + ': _clearDirty übersprungen — neuere lokale Änderung (gen ' + entry.gen + ') hat den bestätigten Stand (gen ' + expectedGen + ') bereits überholt.');
+    return;
+  }
+  delete _dirtyChars[key];
+}
 function _isDirty(uid, idx)    { return !!_dirtyChars[_fbKey(uid, idx)]; }
 
 function _hasChanges(newData, oldData) {
@@ -4110,8 +4161,10 @@ function _fbWriteCharacter(targetUid, charIdx, rawSnap, onDone, _attempt, _expec
 
   // Sofort optimistisch lokal übernehmen + als "pending" mit Snapshot+Basis-
   // Revision markieren, BEVOR der Netzwerk-Versuch überhaupt startet.
+  // Die zurückgegebene Generations-ID merken, damit der .then()-Handler
+  // _clearDirty nur dann aufruft, wenn keine neuere Änderung dazwischengekommen ist.
   characters[charIdx] = Object.assign({}, rawSnap, { _rev: expectedRev + 1 });
-  _markDirty(targetUid, charIdx, rawSnap, expectedRev);
+  var dirtyGenAtWrite = _markDirty(targetUid, charIdx, rawSnap, expectedRev);
   localSave();
 
   var docRef = fbDb.collection('characters').doc(targetUid);
@@ -4141,8 +4194,27 @@ function _fbWriteCharacter(targetUid, charIdx, rawSnap, onDone, _attempt, _expec
       return newChar;
     });
   }).then(function(newChar) {
-    characters[charIdx] = newChar;
-    _clearDirty(targetUid, charIdx);
+    // BUG-FIX: characters[charIdx] NICHT blind mit dem Server-ACK-Snapshot
+    // überschreiben. In der Latenzzeit zwischen Senden und ACK kann der Nutzer
+    // weitere Änderungen gemacht haben — ein neuer _markDirty-Aufruf hat dann
+    // einen aktuelleren Snapshot in _dirtyChars hinterlegt. Diesen dürfen wir
+    // NICHT verlieren. Stattdessen: nur den _rev-Wert aus der Server-Bestätigung
+    // in den aktuell bekannten lokalen Stand einpflegen.
+    var currentDirty = _dirtyChars[key];
+    if (currentDirty && currentDirty.gen !== dirtyGenAtWrite) {
+      // BUG-FIX: Eine neuere lokale Änderung ist bereits pending (anderer gen-Wert)
+      // — nur _rev aktualisieren, damit der nächste Schreibversuch die richtige
+      // Basis-Rev verwendet. Den neueren Snapshot unangetastet lassen.
+      characters[charIdx] = Object.assign({}, currentDirty.snap, { _rev: newChar._rev });
+      // Auch den baseRev des neueren dirty-Eintrags auf die bestätigte Rev aktualisieren,
+      // damit der nächste Schreibversuch vom korrekten Server-Stand ausgeht.
+      currentDirty.baseRev = newChar._rev;
+      dbgLog('warn', 'Speichern bestätigt (Charakter ' + charIdx + ', rev ' + newChar._rev + '), aber inzwischen neuere lokale Änderung (gen ' + currentDirty.gen + ' vs. ' + dirtyGenAtWrite + ') vorhanden — behalte neueren Snapshot, übernehme nur _rev.');
+    } else {
+      // Kein neueres dirty — der Server-ACK-Stand ist auch der neueste lokale Stand.
+      characters[charIdx] = newChar;
+    }
+    _clearDirty(targetUid, charIdx, dirtyGenAtWrite);
     _fbLastSaved[key] = JSON.parse(JSON.stringify(newChar));
     localSave();
     // BEWUSST kein applyData(newChar) hier: der lokale UI-Zustand wurde bereits
@@ -4214,8 +4286,31 @@ function _flushDirty(scopeUid) {
     var sep = key.lastIndexOf(':');
     var uid = key.slice(0, sep);
     var idx = parseInt(key.slice(sep + 1), 10);
-    dbgLog('warn', 'Sende ausstehende Offline-Änderung erneut (Charakter ' + idx + ')...');
-    _fbWriteCharacter(uid, idx, entry.snap, null, 0, entry.baseRev);
+    // BUG-FIX: entry.snap enthält den Snapshot zum Zeitpunkt des ersten _markDirty-
+    // Aufrufs. Wenn der Nutzer seitdem weitere Änderungen gemacht hat, ist
+    // characters[idx] aktueller. Wir verwenden den neueren von beiden:
+    // - Wenn characters[idx] existiert und sich von entry.snap unterscheidet,
+    //   ist characters[idx] neuer (wurde durch weitere Nutzereingaben aktualisiert).
+    // - entry.baseRev behalten wir für die Konflikt-Auflösung.
+    var snapToSend = entry.snap;
+    var currentLocal = characters[idx];
+    if (currentLocal && _canonicalJSON(currentLocal) !== _canonicalJSON(entry.snap)) {
+      // characters[idx] ist neuer (spätere Nutzereingabe) — diesen verwenden.
+      // _rev aus characters[idx] weglassen (wird in _fbWriteCharacter neu berechnet).
+      var currentWithoutRev = Object.assign({}, currentLocal);
+      delete currentWithoutRev._rev;
+      var entryWithoutRev = Object.assign({}, entry.snap);
+      delete entryWithoutRev._rev;
+      if (_canonicalJSON(currentWithoutRev) !== _canonicalJSON(entryWithoutRev)) {
+        snapToSend = currentWithoutRev;
+        dbgLog('warn', 'Sende ausstehende Offline-Änderung erneut (Charakter ' + idx + ') — verwende neueren lokalen Stand statt altem Dirty-Snapshot.');
+      } else {
+        dbgLog('warn', 'Sende ausstehende Offline-Änderung erneut (Charakter ' + idx + ')...');
+      }
+    } else {
+      dbgLog('warn', 'Sende ausstehende Offline-Änderung erneut (Charakter ' + idx + ')...');
+    }
+    _fbWriteCharacter(uid, idx, snapToSend, null, 0, entry.baseRev);
   });
 }
 
@@ -4391,7 +4486,15 @@ function localLoad() {
       // Löschungen aus dem letzten Lauf wiederherstellen, damit sie beim
       // nächsten Reconnect zuverlässig nachgesendet werden.
       if (d.dirty && typeof d.dirty === 'object') {
-        Object.keys(d.dirty).forEach(function(k){ _dirtyChars[k] = d.dirty[k]; });
+        Object.keys(d.dirty).forEach(function(k){
+          var entry = d.dirty[k];
+          // Gen-Feld für aus localStorage geladene Einträge sicherstellen
+          if (entry && typeof entry.gen !== 'number') {
+            _dirtyGen++;
+            entry = Object.assign({}, entry, { gen: _dirtyGen });
+          }
+          _dirtyChars[k] = entry;
+        });
       }
       if (d.pendingDeletes && typeof d.pendingDeletes === 'object') {
         Object.keys(d.pendingDeletes).forEach(function(uid){ _pendingCharDeletes[uid] = d.pendingDeletes[uid]; });
@@ -4467,20 +4570,26 @@ function _safeApplyFromRemote(charIdx, dataToApply) {
     if (!pending) return;
     // Nur anwenden, wenn der Charakter noch der aktive ist
     if (pending.charIdx === activeCharIdx) {
-      // Vor dem Apply den aktuellen lokalen State sichern (der Nutzer könnte
-      // den Wert im fokussierten Feld inzwischen geändert haben). gather()
-      // liest den DOM-Stand, characters[] wird damit gepatcht.
+      // BUG-FIX: gather() liest den aktuellen DOM-Stand — das sind die neuesten
+      // lokalen Werte inkl. aller Felder, die der Nutzer seit dem letzten
+      // bestätigten Save geändert hat. Wir verwenden einen 3-Wege-Merge:
+      // Basis = zuletzt bestätigter Server-Stand (_fbLastSaved)
+      // Mine = aktueller lokaler DOM-Stand (gather())
+      // Theirs = eingehender Remote-Stand (pending.data)
+      // → Felder, die WIR seit dem letzten Save geändert haben, gewinnen.
+      // → Felder, die nur der Remote geändert hat, übernehmen wir.
       var localSnap = gather();
-      // Remote-Daten als Basis, darüber die eigenen gerade bearbeiteten Felder legen
-      var merged = Object.assign({}, pending.data, {
-        // hp und temp sind reine JS-Variablen, kein DOM-Input — immer aus localSnap nehmen
-        hp: localSnap.hp,
-        temp: localSnap.temp,
-        tempHp: localSnap.temp
-      });
+      var charKey = fbUser ? _fbKey(fbUser.uid, pending.charIdx) : null;
+      var base = (charKey && _fbLastSaved[charKey]) || {};
+      // 3-Wege-Merge: remote als Basis, unsere lokalen Änderungen gegenüber base drüberlegen
+      var merged = _mergeChar(base, localSnap, pending.data);
+      // hp und temp sind reine JS-Variablen (nicht DOM-Inputs) — immer aus localSnap nehmen
+      merged.hp = localSnap.hp;
+      merged.temp = localSnap.temp;
+      merged.tempHp = localSnap.temp;
       characters[pending.charIdx] = merged;
       applyData(merged);
-      dbgLog('info', 'Verzögertes Remote-Update für Charakter ' + pending.charIdx + ' nach Fokus-Verlust übernommen.');
+      dbgLog('info', 'Verzögertes Remote-Update für Charakter ' + pending.charIdx + ' nach Fokus-Verlust per 3-Wege-Merge übernommen (lokale Änderungen haben Vorrang).');
     }
   }
   ae.addEventListener('blur', onBlur);
