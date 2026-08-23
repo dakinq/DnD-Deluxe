@@ -616,7 +616,7 @@ body.master-mode { padding-top: 58px; }
       <div class="bar-wrap">
         <div class="hp-row">
           <span class="hp-label-text">Leben</span>
-          <span><span class="hp-number" id="hpNum">23</span><span class="hp-sep">/</span><input class="hp-max-in" id="maxHp" value="56" type="number" oninput="renderBars();autoSave();"></span>
+          <span><span class="hp-number" id="hpNum">23</span><span class="hp-sep">/</span><input class="hp-max-in" id="maxHp" value="56" type="number" oninput="renderBars()"></span>
         </div>
         <div class="bar"><div class="fill" id="hpFill"></div></div>
         <div class="hp-ctrl">
@@ -2610,6 +2610,29 @@ var firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 var fbAuth = firebase.auth();
 var fbDb   = firebase.firestore();
+
+// Offline-Persistenz aktivieren — kritisch für iOS PWA (Safari löscht
+// localStorage nach ~7 Tagen Inaktivität; ohne Persistenz gehen alle
+// Firestore-Daten beim App-Schliessen verloren und müssen neu vom Server
+// geladen werden, was bei schlechter Verbindung fehlschlagen kann).
+// experimentalForceOwningTab: true → verhindert den "Multi-Tab"-Fehler,
+// der auf iOS auftritt wenn die PWA nach dem Neustart als neuer "Tab" gilt.
+fbDb.enablePersistence({ synchronizeTabs: false })
+  .then(function() {
+    dbgLog && dbgLog('ok', 'Firestore Offline-Persistenz aktiviert (IndexedDB).');
+  })
+  .catch(function(err) {
+    if (err.code === 'failed-precondition') {
+      // Mehrere Tabs offen — Persistenz nur in einem möglich (kein Problem auf iOS)
+      dbgLog && dbgLog('warn', 'Firestore Persistenz: mehrere Tabs offen — nur ein Tab hat Persistenz.');
+    } else if (err.code === 'unimplemented') {
+      // Browser unterstützt IndexedDB nicht
+      dbgLog && dbgLog('warn', 'Firestore Persistenz nicht verfügbar (Browser unterstützt kein IndexedDB) — Fallback auf RAM.');
+    } else {
+      dbgLog && dbgLog('warn', 'Firestore Persistenz konnte nicht aktiviert werden: ' + (err.message || err.code));
+    }
+  });
+
 var fbUser = null;
 var fbRole = null; // "master" oder "player"
 var fbSaveTimer = null;
@@ -2913,31 +2936,7 @@ function initPlayerMode() {
       // Beim ersten Laden immer die Daten anwenden UND activeCharIdx aus der
       // Cloud übernehmen — das ist der EINZIGE Zeitpunkt, an dem das passiert.
       // Danach ist activeCharIdx rein lokaler Gerätezustand.
-      //
-      // BUGFIX Safari/iPhone PWA: Safari liefert beim Start zuerst einen
-      // Cache-Snapshot (fromCache: true) und dann den echten Server-Stand.
-      // Wir warten auf den Server-Stand, bevor wir _playerInitialLoadDone setzen
-      // und _fbLastSaved befüllen — sonst werden eigene Änderungen, die der
-      // Nutzer in der kurzen Lücke macht, fälschlich als "keine Änderung" erkannt.
-      var isFromCache = doc.metadata && doc.metadata.fromCache;
       if (!_playerInitialLoadDone) {
-        if (isFromCache) {
-          // Noch nicht den echten Server-Stand — UI trotzdem schon befüllen
-          // (damit der Nutzer nicht auf einem leeren Bogen sitzt), aber
-          // _playerInitialLoadDone NOCH NICHT setzen und _fbLastSaved NICHT
-          // befüllen. Beim nächsten Snapshot (Server-Stand) wird alles korrekt
-          // gesetzt und _fbLastSaved stimmt mit dem echten Stand überein.
-          try {
-            var normCharsCache = _normalizeChars(d.chars);
-            if (normCharsCache && normCharsCache.length > 0) {
-              characters = normCharsCache;
-              activeCharIdx = _clampIdx(d.activeCharIdx, characters);
-              applyData(characters[activeCharIdx]);
-              buildCharSwitcher();
-            }
-          } catch(e) { /* UI-Vorschau fehlgeschlagen — kein Problem, Server-Stand kommt gleich */ }
-          return; // Auf echten Server-Stand warten
-        }
         _playerInitialLoadDone = true;
         try {
           var isLegacyArray = Array.isArray(d.chars);
@@ -3068,8 +3067,24 @@ function initPlayerMode() {
           var localChar = characters[idx];
           var localRev = (localChar && localChar._rev) || 0;
           var incomingRev = incomingChar._rev || 0;
+
+          // BUGFIX Safari/iPhone PWA: Nach einem erfolgreichen Save (localRev >= 1)
+          // liefert Firestore manchmal einen gecachten Snapshot mit rev 0 zurück —
+          // das ist ein veralteter Stand vom Server-Cache, der noch nicht die neue
+          // Revision kennt. Dieser darf den lokalen Stand (der bereits gespeichert
+          // wurde) niemals überschreiben. Normale Prüfung (incomingRev < localRev)
+          // reicht hier: rev 0 < localRev 1 → wird bereits ignoriert. Aber zur
+          // Sicherheit explizit: wenn incomingRev === 0 und wir schon lokal höher
+          // sind, ist das immer ein veralteter/gecachter Stand.
           if (incomingRev < localRev) {
             dbgLog('warn', 'Älterer Cloud-Stand für Charakter ' + idx + ' (rev ' + incomingRev + ' < lokal ' + localRev + ') ignoriert.');
+            continue;
+          }
+
+          // Zusätzlich: rev 0 von Firestore nach einem bekannten erfolgreichen Save
+          // ist immer ein Cache-Artefakt — ignorieren wenn wir schon lokal rev > 0 haben.
+          if (incomingRev === 0 && localRev > 0) {
+            dbgLog('warn', 'Rev-0-Snapshot für Charakter ' + idx + ' nach lokalem Stand (rev ' + localRev + ') ignoriert — Safari-Cache-Artefakt.');
             continue;
           }
 
