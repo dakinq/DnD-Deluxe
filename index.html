@@ -3053,7 +3053,7 @@ function initPlayerMode() {
           anyApplied = true;
 
           if (idx === activeCharIdx) {
-            applyData(characters[idx]);
+            _safeApplyFromRemote(idx, characters[idx]);
             dbgLog('ok', 'Aktiver Charakter aktualisiert (Charakter ' + idx + ', rev ' + incomingRev + ').');
             if (d._lastEditedBy && d._lastEditedBy !== fbUser.uid) toast('📋 Master hat deinen Bogen aktualisiert');
           } else {
@@ -4145,7 +4145,13 @@ function _fbWriteCharacter(targetUid, charIdx, rawSnap, onDone, _attempt, _expec
     _clearDirty(targetUid, charIdx);
     _fbLastSaved[key] = JSON.parse(JSON.stringify(newChar));
     localSave();
-    if (charIdx === activeCharIdx) applyData(newChar);
+    // BEWUSST kein applyData(newChar) hier: der lokale UI-Zustand wurde bereits
+    // optimistisch durch chTemp/chHP etc. gesetzt. Ein nachträgliches applyData()
+    // mit dem (potenziell veralteten) Firestore-Bestätigungsstand würde Eingaben
+    // überschreiben, die der Nutzer in den ~1-2s zwischen Debounce-Ende und
+    // Server-Bestätigung gemacht hat — genau das ist der Temp-TP-Bug.
+    // Der _rev-Wert von newChar ist bereits in characters[charIdx] gespeichert
+    // und wird beim nächsten gather()/fbSave() automatisch verwendet.
     dbgLog('ok', 'Speichern erfolgreich (Charakter ' + charIdx + ', doc: characters/' + targetUid + ', rev ' + newChar._rev + ')');
     if (onDone) onDone(true);
   }).catch(function(e) {
@@ -4416,6 +4422,69 @@ function autoSave() {
   // Debounce: 1.5s nach letzter Änderung speichern
   clearTimeout(fbSaveTimer);
   fbSaveTimer = setTimeout(function() { fbSave(); }, 1500);
+}
+
+// ── FOKUS-GESCHÜTZTER APPLY (für Live-Sync-Updates von anderen Geräten) ──
+// Gibt true zurück, wenn gerade ein Eingabefeld fokussiert ist, das direkt
+// den Charakter-State beeinflusst (Attribut-Inputs, maxHp, Notizen usw.).
+// In diesem Fall darf ein eingehendes Remote-Update die UI NICHT sofort mit
+// applyData() überschreiben — die lokalen Eingaben des Nutzers haben Vorrang.
+// Das Update wird stattdessen nur im Hintergrund-State (characters[]) gespeichert
+// und erst dann in die UI übernommen, wenn das Feld seinen Fokus verliert.
+function _hasActiveFocusedInput() {
+  var ae = document.activeElement;
+  if (!ae) return false;
+  var tag = ae.tagName;
+  return (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') && !ae.disabled && !ae.readOnly;
+}
+
+// Wendet Remote-Daten auf die UI an — aber nur dann sofort, wenn der Nutzer
+// gerade kein Eingabefeld bearbeitet. Andernfalls wird ein einmaliger
+// blur-Handler registriert, der die Übernahme nachholt, sobald das Feld
+// den Fokus verliert. So werden mehrstellige Eingaben (z.B. "15" bei Temp. TP)
+// nicht durch eingehende Cloud-Syncs unterbrochen.
+function _safeApplyFromRemote(charIdx, dataToApply) {
+  if (!_hasActiveFocusedInput()) {
+    // Kein Eingabefeld aktiv → sofort übernehmen
+    applyData(dataToApply);
+    return;
+  }
+  // Eingabefeld fokussiert → Übernahme auf blur verschieben, aber sicherstellen,
+  // dass wir nicht mehrfach registrieren (nur ein pending deferred apply pro Update-Zyklus).
+  var ae = document.activeElement;
+  if (ae._pendingRemoteApply) {
+    // Bereits ein Listener registriert — neuere Daten ersetzen ältere
+    ae._pendingRemoteApplyData = { charIdx: charIdx, data: dataToApply };
+    return;
+  }
+  ae._pendingRemoteApply = true;
+  ae._pendingRemoteApplyData = { charIdx: charIdx, data: dataToApply };
+  function onBlur() {
+    ae.removeEventListener('blur', onBlur);
+    ae._pendingRemoteApply = false;
+    var pending = ae._pendingRemoteApplyData;
+    ae._pendingRemoteApplyData = null;
+    if (!pending) return;
+    // Nur anwenden, wenn der Charakter noch der aktive ist
+    if (pending.charIdx === activeCharIdx) {
+      // Vor dem Apply den aktuellen lokalen State sichern (der Nutzer könnte
+      // den Wert im fokussierten Feld inzwischen geändert haben). gather()
+      // liest den DOM-Stand, characters[] wird damit gepatcht.
+      var localSnap = gather();
+      // Remote-Daten als Basis, darüber die eigenen gerade bearbeiteten Felder legen
+      var merged = Object.assign({}, pending.data, {
+        // hp und temp sind reine JS-Variablen, kein DOM-Input — immer aus localSnap nehmen
+        hp: localSnap.hp,
+        temp: localSnap.temp,
+        tempHp: localSnap.temp
+      });
+      characters[pending.charIdx] = merged;
+      applyData(merged);
+      dbgLog('info', 'Verzögertes Remote-Update für Charakter ' + pending.charIdx + ' nach Fokus-Verlust übernommen.');
+    }
+  }
+  ae.addEventListener('blur', onBlur);
+  dbgLog('info', 'Remote-Update für Charakter ' + charIdx + ' zurückgestellt — Nutzer bearbeitet gerade ein Eingabefeld.');
 }
 
 // Wird über onAuthStateChanged gesteuert — nur localStorage als Sofort-Fallback.
