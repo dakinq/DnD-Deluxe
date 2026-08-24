@@ -364,9 +364,9 @@ input, textarea { color:var(--text-main); background:transparent; border:none; o
 body.master-mode .nb-bar { bottom: 0; }
 body.master-mode { padding-top: 58px; }
 /* ── SPEICHER-LOG (Debug) ── */
-#dbgLogBtn{position:fixed;right:10px;bottom:10px;z-index:9600;width:34px;height:34px;border-radius:50%;background:rgba(13,10,7,0.85);border:1.5px solid var(--gold-dim);color:var(--gold);font-size:15px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 8px rgba(0,0,0,0.5);opacity:0.55;}
-#dbgLogBtn.err{border-color:#e05050;color:#e05050;opacity:1;box-shadow:0 0 10px rgba(224,80,80,0.5);}
-#dbgLogBadge{position:absolute;top:-4px;right:-4px;background:#e05050;color:#fff;font-size:9px;line-height:1;border-radius:8px;padding:2px 4px;min-width:14px;text-align:center;display:none;}
+#dbgLogBtn{position:relative;width:100%;padding:12px;background:rgba(201,168,76,0.07);border:1px solid rgba(201,168,76,0.2);border-radius:10px;color:var(--gold-dim);font-size:13px;font-family:Georgia,serif;letter-spacing:1px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;}
+#dbgLogBtn.err{border-color:rgba(224,80,80,0.5);color:#e07070;background:rgba(180,60,60,0.1);}
+#dbgLogBadge{display:inline-block;background:#e05050;color:#fff;font-size:9px;line-height:1;border-radius:8px;padding:2px 5px;min-width:14px;text-align:center;vertical-align:middle;}
 /* ============================================================
    7. DEBUG-LOG — Speicher-Log-Panel
    ============================================================ */
@@ -543,8 +543,7 @@ body.master-mode { padding-top: 58px; }
 <!-- Toast außerhalb appRoot damit er auch im Master-Modus funktioniert -->
 <div id="toast"></div>
 
-<!-- ── SPEICHER-LOG (Debug) ── -->
-<button id="dbgLogBtn" onclick="dbgLogOpen()" title="Speicher-Log">🛈<span id="dbgLogBadge"></span></button>
+<!-- ── SPEICHER-LOG (Debug) — Button ist in der Notizen-Seite unter "Konto" ── -->
 <div id="dbgLogPanel">
   <div id="dbgLogHeader">
     <h3>Speicher-Log</h3>
@@ -812,6 +811,9 @@ body.master-mode { padding-top: 58px; }
     <button onclick="doLogout()" style="width:100%;padding:12px;background:rgba(180,60,60,0.15);border:1px solid rgba(180,60,60,0.35);border-radius:10px;color:#e07070;font-size:13px;font-family:Georgia,serif;letter-spacing:1px;cursor:pointer;">
       Abmelden
     </button>
+    <div style="margin-top:8px;">
+      <button id="dbgLogBtn" onclick="dbgLogOpen()" title="Speicher-Log öffnen">🛈 <span style="font-size:13px;">Speicher-Log</span><span id="dbgLogBadge"></span></button>
+    </div>
   </div>
 
   <div class="card">
