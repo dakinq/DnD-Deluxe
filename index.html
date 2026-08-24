@@ -474,6 +474,17 @@ body.master-mode { padding-top: 58px; }
     </div>
   </div>
 
+  <!-- Waffen-Panel -->
+  <div id="masterPanelWeapons" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 16px 82px;display:none;">
+    <div class="card">
+      <div class="card-title">⚔️ Waffen verwalten</div>
+      <div id="masterWeaponList"></div>
+      <div style="padding:6px 0 2px;">
+        <button class="add-btn" onclick="masterAddWeapon()" style="width:100%;padding:12px;background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.3);border-radius:10px;color:var(--gold);font-family:Georgia,serif;font-size:13px;letter-spacing:1px;">+ Waffe hinzufügen</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Master Bottom Tab Bar -->
   <div style="position:fixed;bottom:0;left:0;right:0;height:68px;background:rgba(10,7,4,0.97);border-top:1px solid rgba(201,168,76,0.2);display:flex;align-items:center;justify-content:space-around;padding:0 4px;z-index:600;">
     <button id="masterTabPlayers" onclick="switchMasterTab('players')" style="display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(201,168,76,0.12);border:none;border-radius:10px;padding:8px 10px;color:var(--gold);min-width:44px;font-family:Georgia,serif;transition:all 0.2s;">
@@ -483,6 +494,10 @@ body.master-mode { padding-top: 58px; }
     <button id="masterTabItems" onclick="switchMasterTab('items')" style="display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;border-radius:10px;padding:8px 10px;color:#7a6230;min-width:44px;font-family:Georgia,serif;transition:all 0.2s;">
       <span style="font-size:20px;line-height:1;">🎒</span>
       <span style="font-size:8px;letter-spacing:1px;text-transform:uppercase;">Gegenstände</span>
+    </button>
+    <button id="masterTabWeapons" onclick="switchMasterTab('weapons')" style="display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;border-radius:10px;padding:8px 10px;color:#7a6230;min-width:44px;font-family:Georgia,serif;transition:all 0.2s;">
+      <span style="font-size:20px;line-height:1;">🗡️</span>
+      <span style="font-size:8px;letter-spacing:1px;text-transform:uppercase;">Waffen</span>
     </button>
   </div>
 </div>
@@ -539,6 +554,79 @@ body.master-mode { padding-top: 58px; }
   </div>
 </div>
 
+
+<!-- MASTER WAFFEN MODAL -->
+<div id="masterWeaponModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:600;background:rgba(0,0,0,0.8);align-items:flex-end;justify-content:center;overflow-y:auto;">
+  <div style="background:var(--card-bg);border:1px solid rgba(201,168,76,0.3);border-radius:16px 16px 0 0;width:100%;max-width:520px;padding:20px 18px 36px;position:relative;">
+    <button onclick="closeMasterWeaponModal()" style="position:absolute;top:14px;right:14px;background:rgba(255,255,255,0.08);border:none;color:var(--text-dim);width:32px;height:32px;border-radius:50%;font-size:18px;display:flex;align-items:center;justify-content:center;">✕</button>
+    <div style="font-size:11px;letter-spacing:3px;color:var(--gold);text-transform:uppercase;margin-bottom:16px;text-align:center;">Waffe</div>
+
+    <!-- Name -->
+    <input id="mwName" type="text" placeholder="Waffenname..." style="width:100%;font-size:18px;color:var(--text-bright);background:rgba(255,255,255,0.05);border:1px solid rgba(201,168,76,0.25);border-radius:10px;padding:10px 14px;outline:none;font-family:Georgia,serif;margin-bottom:10px;box-sizing:border-box;">
+
+    <!-- Angriff / Schaden / Typ -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
+      <div>
+        <span style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#a08c60;margin-bottom:3px;display:block;">Angriffsbonus</span>
+        <input id="mwBonus" type="text" placeholder="+0" style="width:100%;height:36px;background:rgba(255,255,255,0.05);border:1px solid rgba(201,168,76,0.2);border-radius:8px;color:#f0e6c8;font-size:14px;padding:0 8px;outline:none;font-family:Georgia,serif;box-sizing:border-box;">
+      </div>
+      <div>
+        <span style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#a08c60;margin-bottom:3px;display:block;">Schaden</span>
+        <input id="mwDmg" type="text" placeholder="1W6" style="width:100%;height:36px;background:rgba(255,255,255,0.05);border:1px solid rgba(201,168,76,0.2);border-radius:8px;color:#f0e6c8;font-size:14px;padding:0 8px;outline:none;font-family:Georgia,serif;box-sizing:border-box;">
+      </div>
+      <div>
+        <span style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#a08c60;margin-bottom:3px;display:block;">Schadenstyp</span>
+        <input id="mwType" type="text" placeholder="Hieb" style="width:100%;height:36px;background:rgba(255,255,255,0.05);border:1px solid rgba(201,168,76,0.2);border-radius:8px;color:#f0e6c8;font-size:14px;padding:0 8px;outline:none;font-family:Georgia,serif;box-sizing:border-box;">
+      </div>
+    </div>
+
+    <!-- Attribut / Reichweite / Magiestufe -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
+      <div>
+        <span style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#a08c60;margin-bottom:3px;display:block;">Attribut</span>
+        <input id="mwAttr" type="text" placeholder="STÄ" style="width:100%;height:36px;background:rgba(255,255,255,0.05);border:1px solid rgba(201,168,76,0.2);border-radius:8px;color:#f0e6c8;font-size:14px;padding:0 8px;outline:none;font-family:Georgia,serif;box-sizing:border-box;">
+      </div>
+      <div>
+        <span style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#a08c60;margin-bottom:3px;display:block;">Reichweite</span>
+        <input id="mwRange" type="text" placeholder="1,5m" style="width:100%;height:36px;background:rgba(255,255,255,0.05);border:1px solid rgba(201,168,76,0.2);border-radius:8px;color:#f0e6c8;font-size:14px;padding:0 8px;outline:none;font-family:Georgia,serif;box-sizing:border-box;">
+      </div>
+      <div>
+        <span style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#a08c60;margin-bottom:3px;display:block;">Magiestufe</span>
+        <div id="mwMagicBtns" style="display:flex;gap:3px;"></div>
+      </div>
+    </div>
+
+    <!-- Magic Label -->
+    <div style="margin-bottom:10px;">
+      <span style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#a08c60;margin-bottom:3px;display:block;">Bezeichnung (z.B. Flammend +1)</span>
+      <input id="mwMagicLabel" type="text" placeholder="optional..." style="width:100%;height:36px;background:rgba(255,255,255,0.05);border:1px solid rgba(201,168,76,0.2);border-radius:8px;color:#f0e6c8;font-size:14px;padding:0 8px;outline:none;font-family:Georgia,serif;box-sizing:border-box;">
+    </div>
+
+    <!-- Boni -->
+    <div style="margin-bottom:10px;">
+      <div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#a08c60;margin-bottom:6px;">Boni</div>
+      <div id="mwBonusPanel"></div>
+    </div>
+
+    <!-- Notizen -->
+    <div style="margin-bottom:14px;">
+      <span style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#a08c60;margin-bottom:3px;display:block;">Notizen</span>
+      <textarea id="mwNotes" placeholder="Beschreibung, Effekte..." rows="3" style="width:100%;font-size:14px;color:var(--text-main);background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.15);border-radius:10px;padding:10px 14px;outline:none;font-family:Georgia,serif;resize:none;box-sizing:border-box;"></textarea>
+    </div>
+
+    <!-- Zuweisen an Spieler -->
+    <div style="margin-bottom:14px;">
+      <div style="font-size:10px;letter-spacing:2px;color:var(--text-dim);margin-bottom:8px;">AN SPIELER ZUWEISEN</div>
+      <div id="mwPlayerList" style="display:flex;flex-direction:column;gap:6px;max-height:160px;overflow-y:auto;"></div>
+    </div>
+
+    <!-- Speichern / Löschen -->
+    <div style="display:flex;gap:10px;">
+      <button onclick="saveMasterWeapon()" style="flex:1;padding:13px;background:rgba(201,168,76,0.18);border:1px solid rgba(201,168,76,0.4);border-radius:10px;color:var(--gold);font-family:Georgia,serif;font-size:14px;letter-spacing:1px;">💾 Speichern</button>
+      <button onclick="deleteMasterWeapon()" style="padding:13px 18px;background:rgba(192,57,43,0.15);border:1px solid rgba(192,57,43,0.3);border-radius:10px;color:#e07070;font-family:Georgia,serif;font-size:14px;">🗑</button>
+    </div>
+  </div>
+</div>
 
 <!-- Toast außerhalb appRoot damit er auch im Master-Modus funktioniert -->
 <div id="toast"></div>
@@ -3411,8 +3499,9 @@ function initMasterMode() {
     });
     buildMasterPills();
   });
-  // Master-Gegenstände laden
+  // Master-Gegenstände und -Waffen laden (gleiche Firestore-Architektur, kind-Feld unterscheidet)
   loadMasterItems();
+  loadMasterWeapons();
   applyMasterBodyClass();
 }
 
@@ -3751,13 +3840,19 @@ var miItemBonuses = {};
 // Tab-Switching
 function switchMasterTab(tab) {
   var isPlayers = tab === 'players';
+  var isItems   = tab === 'items';
+  var isWeapons = tab === 'weapons';
   document.getElementById('masterPanelPlayers').style.display = isPlayers ? 'flex' : 'none';
-  document.getElementById('masterPanelItems').style.display = isPlayers ? 'none' : 'block';
+  document.getElementById('masterPanelItems').style.display   = isItems   ? 'block' : 'none';
+  document.getElementById('masterPanelWeapons').style.display = isWeapons ? 'block' : 'none';
   document.getElementById('masterTabPlayers').style.background = isPlayers ? 'rgba(201,168,76,0.12)' : 'none';
-  document.getElementById('masterTabPlayers').style.color = isPlayers ? 'var(--gold)' : '#7a6230';
-  document.getElementById('masterTabItems').style.background = !isPlayers ? 'rgba(201,168,76,0.12)' : 'none';
-  document.getElementById('masterTabItems').style.color = !isPlayers ? 'var(--gold)' : '#7a6230';
-  if (!isPlayers) buildMasterItemList();
+  document.getElementById('masterTabPlayers').style.color      = isPlayers ? 'var(--gold)' : '#7a6230';
+  document.getElementById('masterTabItems').style.background   = isItems   ? 'rgba(201,168,76,0.12)' : 'none';
+  document.getElementById('masterTabItems').style.color        = isItems   ? 'var(--gold)' : '#7a6230';
+  document.getElementById('masterTabWeapons').style.background = isWeapons ? 'rgba(201,168,76,0.12)' : 'none';
+  document.getElementById('masterTabWeapons').style.color      = isWeapons ? 'var(--gold)' : '#7a6230';
+  if (isItems)   buildMasterItemList();
+  if (isWeapons) buildMasterWeaponList();
 }
 
 // Master-Items aus Firestore laden
@@ -4265,6 +4360,502 @@ function deleteMasterItem() {
     buildMasterItemList();
     closeMasterItemModal();
     toast('Gegenstand gelöscht');
+  }
+}
+
+// ============================================================
+// MASTER-WAFFEN — Verwaltung und Zuweisung von Waffen
+// Architektur: gleiche Firestore-Collection "masterItems", kind:'weapon'
+// Zuweisung: Kopie in attacks[] des Spieler-Charakters (wie items[] bei Items)
+// ============================================================
+
+var masterWeapons = []; // Gefilterte Teilmenge aus masterItems mit kind:'weapon'
+var masterWeaponEditIdx = -1; // Index in masterWeapons[] (-1 = neu)
+var mwWeaponMagic = 0;        // 0–3 Magiestufe
+var mwWeaponBonuses = {};     // Stat-Boni der Waffe
+
+// Master-Waffen-Listener (eigener Listener für weapon-kind)
+var _masterWeaponsListener = null;
+function loadMasterWeapons() {
+  if (!fbDb) return;
+  if (_masterWeaponsListener) { try { _masterWeaponsListener(); } catch(e){} }
+  _masterWeaponsListener = fbDb.collection('masterItems')
+    .where('kind', '==', 'weapon')
+    .orderBy('createdAt', 'asc')
+    .onSnapshot(function(snap) {
+      masterWeapons = [];
+      snap.forEach(function(doc) {
+        var d = doc.data();
+        d._id = doc.id;
+        masterWeapons.push(d);
+      });
+      buildMasterWeaponList();
+    }, function(err) {
+      // Fallback: einmalig per get()
+      fbDb.collection('masterItems').where('kind', '==', 'weapon').orderBy('createdAt', 'asc').get().then(function(snap) {
+        masterWeapons = [];
+        snap.forEach(function(doc) {
+          var d = doc.data();
+          d._id = doc.id;
+          masterWeapons.push(d);
+        });
+        buildMasterWeaponList();
+      }).catch(function() { buildMasterWeaponList(); });
+    });
+}
+
+// Waffen-Liste rendern
+function buildMasterWeaponList() {
+  var el = document.getElementById('masterWeaponList');
+  if (!el) return;
+  if (masterWeapons.length === 0) {
+    el.innerHTML = '<div style="color:var(--text-dim);font-size:13px;text-align:center;padding:20px 0;letter-spacing:1px;">Noch keine Waffen erstellt</div>';
+    return;
+  }
+  var mClass = ['','magic1','magic2','magic3'];
+  var mBadge = ['','m1','m2','m3'];
+  var html = '';
+  for (var i = 0; i < masterWeapons.length; i++) {
+    var w = masterWeapons[i];
+    var m = w.magic || 0;
+    var tierStr = m > 0 ? '+' + m : '';
+    var labelStr = w.magicLabel && w.magicLabel.trim() ? w.magicLabel.trim() : '';
+    var badge = labelStr && tierStr ? labelStr + ' ' + tierStr : labelStr || tierStr;
+    var assigned = w.assignedTo && w.assignedTo.length > 0;
+    var assignInfo = '';
+    if (assigned) {
+      var names = [];
+      for (var j = 0; j < w.assignedTo.length; j++) {
+        var entry = w.assignedTo[j];
+        var entryUid = entry.indexOf(':') >= 0 ? entry.slice(0, entry.indexOf(':')) : entry;
+        var p = masterPlayers[entryUid];
+        if (p) names.push(p.name || entryUid);
+      }
+      assignInfo = '<span style="font-size:11px;color:var(--gold);background:rgba(201,168,76,0.12);border-radius:4px;padding:1px 6px;margin-left:4px;">→ ' + escHtml(names.join(', ')) + '</span>';
+    }
+    html += '<div class="master-item-card' + (m > 0 ? ' magic' : '') + '">' +
+      (m > 0 ? '<span style="font-size:14px;">✨</span>' : '<span style="font-size:14px;">🗡️</span>') +
+      '<button onclick="openMasterWeaponModal(' + i + ')" style="flex:1;background:none;border:none;text-align:left;padding:0;font-family:Georgia,serif;display:flex;flex-direction:column;align-items:flex-start;gap:2px;">' +
+        '<div style="display:flex;align-items:center;gap:6px;">' +
+          '<span style="font-size:15px;color:' + (m > 0 ? '#cc88ff' : 'var(--text-main)') + ';">' + escHtml(w.name || 'Waffe') + '</span>' +
+          (badge ? '<span class="magic-badge ' + mBadge[m] + '">' + escHtml(badge) + '</span>' : '') +
+          assignInfo +
+        '</div>' +
+        '<span style="font-size:12px;color:var(--text-dim);">' +
+          (w.bonus ? escHtml(w.bonus) : '') +
+          (w.dmg   ? ' · ' + escHtml(w.dmg)  : '') +
+          (w.type  ? ' · ' + escHtml(w.type) : '') +
+        '</span>' +
+      '</button>' +
+    '</div>';
+  }
+  el.innerHTML = html;
+}
+
+// Neue Master-Waffe hinzufügen
+function masterAddWeapon() {
+  openMasterWeaponModal(-1);
+}
+
+// Master-Waffen-Modal öffnen
+function openMasterWeaponModal(idx) {
+  masterWeaponEditIdx = idx;
+  var w = idx >= 0 ? masterWeapons[idx] : { name:'', bonus:'+0', dmg:'1W6', type:'', attr:'', range:'', magic:0, magicLabel:'', bonuses:{}, notes:'', assignedTo:[] };
+  mwWeaponMagic   = w.magic   || 0;
+  mwWeaponBonuses = JSON.parse(JSON.stringify(w.bonuses || {}));
+
+  document.getElementById('mwName').value       = w.name       || '';
+  document.getElementById('mwBonus').value      = w.bonus      || '';
+  document.getElementById('mwDmg').value        = w.dmg        || '';
+  document.getElementById('mwType').value       = w.type       || '';
+  document.getElementById('mwAttr').value       = w.attr       || '';
+  document.getElementById('mwRange').value      = w.range      || '';
+  document.getElementById('mwMagicLabel').value = w.magicLabel || '';
+  document.getElementById('mwNotes').value      = w.notes      || '';
+
+  // Magic-Buttons aufbauen
+  _buildMwMagicBtns();
+
+  // Bonus-Panel aufbauen
+  _buildMwBonusPanel();
+
+  // Spielerliste laden
+  var pl = document.getElementById('mwPlayerList');
+  var assignedTo = w.assignedTo || [];
+  var uids = Object.keys(masterPlayers);
+  if (uids.length === 0) {
+    pl.innerHTML = '<div style="color:var(--text-dim);font-size:13px;padding:8px 0;">Keine Spieler verbunden</div>';
+  } else {
+    pl.innerHTML = '<div style="color:var(--text-dim);font-size:13px;padding:8px 0;">Lädt Charaktere…</div>';
+  }
+
+  Promise.all(uids.map(function(uid) {
+    return fbDb.collection('characters').doc(uid).get().then(function(doc) {
+      var chars = doc.exists ? _normalizeChars(doc.data().chars) : null;
+      return { uid: uid, chars: chars || [] };
+    }).catch(function() { return { uid: uid, chars: [] }; });
+  })).then(function(results) {
+    var playerHtml = '';
+    results.forEach(function(r) {
+      var p = masterPlayers[r.uid];
+      if (!p) return;
+      if (r.chars.length <= 1) {
+        var key = r.uid + ':0';
+        var isAssigned = assignedTo.indexOf(key) >= 0 || assignedTo.indexOf(r.uid) >= 0;
+        playerHtml += '<button class="mi-assign-btn' + (isAssigned ? ' assigned' : '') + '" onclick="toggleMasterWeaponAssign(\'' + key + '\')" id="mwAssign_' + key + '">' +
+          '<span>' + escHtml(p.name || r.uid) + '</span>' +
+          '<span>' + (isAssigned ? '✓ Zugewiesen' : '+ Zuweisen') + '</span>' +
+        '</button>';
+      } else {
+        r.chars.forEach(function(c, ci) {
+          var key = r.uid + ':' + ci;
+          var isAssigned = assignedTo.indexOf(key) >= 0;
+          var cName = (c && c.charName) ? c.charName : ('Charakter ' + (ci + 1));
+          playerHtml += '<button class="mi-assign-btn' + (isAssigned ? ' assigned' : '') + '" onclick="toggleMasterWeaponAssign(\'' + key + '\')" id="mwAssign_' + key + '">' +
+            '<span>' + escHtml(p.name || r.uid) + ' – ' + escHtml(cName) + '</span>' +
+            '<span>' + (isAssigned ? '✓ Zugewiesen' : '+ Zuweisen') + '</span>' +
+          '</button>';
+        });
+      }
+    });
+    pl.innerHTML = playerHtml || '<div style="color:var(--text-dim);font-size:13px;padding:8px 0;">Keine Spieler verbunden</div>';
+  });
+
+  var modal = document.getElementById('masterWeaponModal');
+  modal.style.display = 'flex';
+  document.getElementById('mwName').focus();
+}
+
+function closeMasterWeaponModal() {
+  document.getElementById('masterWeaponModal').style.display = 'none';
+  masterWeaponEditIdx = -1;
+}
+
+// Magic-Buttons für Waffen-Modal
+function _buildMwMagicBtns() {
+  var cols    = ['rgba(255,255,255,0.06)','rgba(40,100,40,0.3)','rgba(30,60,140,0.3)','rgba(80,20,120,0.3)'];
+  var borders = ['rgba(201,168,76,0.15)','rgba(100,180,100,0.5)','rgba(100,160,255,0.5)','rgba(200,100,255,0.5)'];
+  var textcol = ['#a08c60','#7dbb7d','#7ab0ff','#cc88ff'];
+  var labels  = ['Keine','+1','+2','+3'];
+  var el = document.getElementById('mwMagicBtns');
+  if (!el) return;
+  var html = '';
+  for (var mi = 0; mi < 4; mi++) {
+    var isA = mwWeaponMagic === mi;
+    html += '<button data-mw="' + mi + '" onclick="setMwMagic(' + mi + ')" style="flex:1;height:36px;padding:0;border-radius:6px;border:1px solid ' + (isA ? borders[mi] : 'rgba(201,168,76,0.1)') + ';background:' + (isA ? cols[mi] : 'rgba(255,255,255,0.03)') + ';color:' + (isA ? textcol[mi] : '#a08c60') + ';font-size:11px;">' + labels[mi] + '</button>';
+  }
+  el.innerHTML = html;
+}
+
+function setMwMagic(m) {
+  mwWeaponMagic = m;
+  _buildMwMagicBtns();
+}
+
+// Bonus-Panel für Waffen-Modal (analog zu buildMiBonusPanel)
+function _buildMwBonusPanel() {
+  var panel = document.getElementById('mwBonusPanel');
+  if (!panel) return;
+  panel.innerHTML = '';
+  var active = _itemBonusIds.filter(function(sid){ return parseInt(mwWeaponBonuses[sid])||0; });
+  active.forEach(function(sid) {
+    var val = parseInt(mwWeaponBonuses[sid]);
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid rgba(201,168,76,0.07);';
+    row.innerHTML =
+      '<span style="flex:1;font-size:14px;color:#f0e6c8;">' + _miBonusNames[sid] + '</span>' +
+      '<button data-dir="-1" data-sid="' + sid + '" style="width:28px;height:28px;border-radius:50%;border:1px solid rgba(201,168,76,0.2);background:rgba(255,255,255,0.05);color:#f0e6c8;font-size:16px;display:flex;align-items:center;justify-content:center;">−</button>' +
+      '<span id="mwbonus_' + sid + '" style="width:34px;text-align:center;font-size:14px;font-weight:bold;color:var(--green-bright);">' + (val > 0 ? '+' : '') + val + '</span>' +
+      '<button data-dir="1" data-sid="' + sid + '" style="width:28px;height:28px;border-radius:50%;border:1px solid rgba(201,168,76,0.2);background:rgba(255,255,255,0.05);color:#f0e6c8;font-size:16px;display:flex;align-items:center;justify-content:center;">+</button>' +
+      '<button data-del="' + sid + '" style="width:28px;height:28px;border-radius:50%;border:1px solid rgba(180,60,60,0.3);background:rgba(180,60,60,0.1);color:#e07070;font-size:14px;display:flex;align-items:center;justify-content:center;">✕</button>';
+    row.addEventListener('click', function(e) {
+      var b = e.target.closest('[data-dir]');
+      if (b) { _adjMwBonus(b.getAttribute('data-sid'), parseInt(b.getAttribute('data-dir'))); }
+      var d = e.target.closest('[data-del]');
+      if (d) { _delMwBonus(d.getAttribute('data-del')); }
+    });
+    panel.appendChild(row);
+  });
+  var unused = _itemBonusIds.filter(function(sid){ return !(parseInt(mwWeaponBonuses[sid])||0); });
+  var addRow = document.createElement('div');
+  addRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:6px 4px;';
+  addRow.innerHTML = '<span style="font-size:13px;color:#a08c60;letter-spacing:1px;">Boni</span>';
+  if (unused.length > 0) {
+    var addBtn = document.createElement('button');
+    addBtn.textContent = '+';
+    addBtn.style.cssText = 'width:28px;height:28px;border-radius:50%;border:1px solid rgba(201,168,76,0.25);background:rgba(201,168,76,0.08);color:var(--gold);font-size:20px;display:flex;align-items:center;justify-content:center;line-height:1;';
+    addBtn.addEventListener('click', function() { _showMwBonusWheel(); });
+    addRow.appendChild(addBtn);
+  }
+  panel.appendChild(addRow);
+}
+
+function _adjMwBonus(sid, dir) {
+  var cur = parseInt(mwWeaponBonuses[sid]) || 0;
+  var nv = cur + dir;
+  if (nv === 0) { _delMwBonus(sid); return; }
+  mwWeaponBonuses[sid] = nv;
+  var sp = document.getElementById('mwbonus_' + sid);
+  if (sp) sp.textContent = (nv > 0 ? '+' : '') + nv;
+}
+function _delMwBonus(sid) {
+  delete mwWeaponBonuses[sid];
+  _buildMwBonusPanel();
+}
+
+function _showMwBonusWheel() {
+  var panel = document.getElementById('mwBonusPanel');
+  if (!panel) return;
+  var existing = document.getElementById('mwBonusWheel');
+  if (existing) { existing.remove(); return; }
+  var unused = _itemBonusIds.filter(function(sid){ return !(parseInt(mwWeaponBonuses[sid])||0); });
+  if (unused.length === 0) return;
+  var wheel = document.createElement('div');
+  wheel.id = 'mwBonusWheel';
+  wheel.style.cssText = 'background:rgba(15,10,4,0.98);border:1px solid rgba(201,168,76,0.3);border-radius:12px;padding:14px;margin-bottom:8px;';
+  var attrLbl = document.createElement('div');
+  attrLbl.style.cssText = 'font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#a08c60;margin-bottom:8px;';
+  attrLbl.textContent = 'Attribut'; wheel.appendChild(attrLbl);
+  var attrSel = document.createElement('select');
+  attrSel.style.cssText = 'width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(201,168,76,0.2);border-radius:8px;color:#f0e6c8;font-size:15px;padding:8px;outline:none;font-family:Georgia,serif;margin-bottom:12px;';
+  unused.forEach(function(sid){ var o=document.createElement('option'); o.value=sid; o.textContent=_miBonusNames[sid]; attrSel.appendChild(o); });
+  wheel.appendChild(attrSel);
+  var valLbl = document.createElement('div');
+  valLbl.style.cssText = 'font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#a08c60;margin-bottom:8px;';
+  valLbl.textContent = 'Bonus'; wheel.appendChild(valLbl);
+  var valRow = document.createElement('div');
+  valRow.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:14px;';
+  var minusB = document.createElement('button'); minusB.textContent='−'; minusB.style.cssText='width:36px;height:36px;border-radius:50%;border:1px solid rgba(201,168,76,0.2);background:rgba(255,255,255,0.05);color:#f0e6c8;font-size:20px;display:flex;align-items:center;justify-content:center;';
+  var valDisp = document.createElement('span'); valDisp.textContent='+1'; valDisp.style.cssText='flex:1;text-align:center;font-size:24px;font-weight:bold;color:var(--gold);';
+  var plusB = document.createElement('button'); plusB.textContent='+'; plusB.style.cssText='width:36px;height:36px;border-radius:50%;border:1px solid rgba(201,168,76,0.2);background:rgba(255,255,255,0.05);color:#f0e6c8;font-size:20px;display:flex;align-items:center;justify-content:center;';
+  var wVal = 1;
+  minusB.addEventListener('click', function(){ if(wVal>-10)wVal--; valDisp.textContent=(wVal>0?'+':'')+wVal; });
+  plusB.addEventListener('click',  function(){ if(wVal<10)wVal++;  valDisp.textContent=(wVal>0?'+':'')+wVal; });
+  valRow.appendChild(minusB); valRow.appendChild(valDisp); valRow.appendChild(plusB);
+  wheel.appendChild(valRow);
+  var confirmB = document.createElement('button');
+  confirmB.textContent = '✓ Hinzufügen';
+  confirmB.style.cssText = 'width:100%;padding:10px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.3);border-radius:10px;color:var(--gold);font-size:14px;font-family:Georgia,serif;';
+  confirmB.addEventListener('click', function() {
+    var sid = attrSel.value;
+    if (!sid) return;
+    mwWeaponBonuses[sid] = wVal;
+    wheel.remove();
+    _buildMwBonusPanel();
+  });
+  wheel.appendChild(confirmB);
+  panel.insertBefore(wheel, panel.lastChild);
+}
+
+// Spieler-Zuweisung für Waffe toggeln
+function toggleMasterWeaponAssign(uid) {
+  var idx = masterWeaponEditIdx;
+  var w = idx >= 0 ? masterWeapons[idx] : null;
+  var assignedTo = w ? (w.assignedTo ? w.assignedTo.slice() : []) : (window._tempMwAssigned || []);
+  if (!window._tempMwAssigned && idx < 0) window._tempMwAssigned = [];
+  if (idx < 0) assignedTo = window._tempMwAssigned;
+
+  var pos = assignedTo.indexOf(uid);
+  if (pos >= 0) {
+    assignedTo.splice(pos, 1);
+  } else {
+    assignedTo.push(uid);
+  }
+  if (idx >= 0) masterWeapons[idx].assignedTo = assignedTo;
+
+  var btn = document.getElementById('mwAssign_' + uid);
+  if (btn) {
+    var isAssigned = assignedTo.indexOf(uid) >= 0;
+    btn.className = 'mi-assign-btn' + (isAssigned ? ' assigned' : '');
+    btn.querySelector('span:last-child').textContent = isAssigned ? '✓ Zugewiesen' : '+ Zuweisen';
+  }
+}
+
+// Master-Waffe speichern
+function saveMasterWeapon() {
+  var name = document.getElementById('mwName').value.trim();
+  if (!name) { toast('Bitte Namen eingeben'); return; }
+  var bonus      = document.getElementById('mwBonus').value.trim();
+  var dmg        = document.getElementById('mwDmg').value.trim();
+  var type       = document.getElementById('mwType').value.trim();
+  var attr       = document.getElementById('mwAttr').value.trim();
+  var range      = document.getElementById('mwRange').value.trim();
+  var magicLabel = document.getElementById('mwMagicLabel').value.trim();
+  var notes      = document.getElementById('mwNotes').value.trim();
+
+  var idx = masterWeaponEditIdx;
+  var w = idx >= 0 ? masterWeapons[idx] : {};
+  var assignedTo = w.assignedTo ? w.assignedTo.slice() : (window._tempMwAssigned || []);
+
+  var data = {
+    kind:       'weapon',
+    name:       name,
+    bonus:      bonus,
+    dmg:        dmg,
+    type:       type,
+    attr:       attr,
+    range:      range,
+    magic:      mwWeaponMagic,
+    magicLabel: magicLabel,
+    bonuses:    mwWeaponBonuses,
+    notes:      notes,
+    assignedTo: assignedTo,
+    createdAt:  w.createdAt || Date.now(),
+    updatedAt:  Date.now()
+  };
+
+  if (fbDb) {
+    if (idx >= 0 && masterWeapons[idx]._id) {
+      var weaponId = masterWeapons[idx]._id;
+      fbDb.collection('masterItems').doc(weaponId).set(data).then(function() {
+        assignWeaponToPlayers(weaponId, data);
+        toast('Waffe gespeichert');
+        closeMasterWeaponModal();
+      }).catch(function(e) {
+        toast('Fehler beim Speichern: ' + (e.message || e.code || 'unbekannt'));
+      });
+    } else {
+      fbDb.collection('masterItems').add(data).then(function(ref) {
+        assignWeaponToPlayers(ref.id, data);
+        toast('Waffe erstellt');
+        window._tempMwAssigned = [];
+        closeMasterWeaponModal();
+      }).catch(function(e) {
+        toast('Fehler beim Erstellen: ' + (e.message || e.code || 'unbekannt'));
+      });
+    }
+  } else {
+    // Kein Firestore – lokal
+    if (idx >= 0) {
+      masterWeapons[idx] = Object.assign(masterWeapons[idx], data);
+    } else {
+      data._id = 'local_' + Date.now();
+      masterWeapons.push(data);
+      window._tempMwAssigned = [];
+    }
+    buildMasterWeaponList();
+    closeMasterWeaponModal();
+    toast('Waffe gespeichert (lokal)');
+  }
+}
+
+// Waffe den ausgewählten Spieler-Charakteren in deren attacks[] zuweisen
+// Analog zu assignItemToPlayers(), aber Ziel ist attacks[] statt items[]
+function assignWeaponToPlayers(weaponId, weaponData) {
+  if (!fbDb || !weaponData.assignedTo) return;
+  var assignedTo = weaponData.assignedTo;
+  var allUids = Object.keys(masterPlayers);
+  for (var i = 0; i < allUids.length; i++) {
+    var uid = allUids[i];
+    (function(playerId) {
+      var docRef = fbDb.collection('characters').doc(playerId);
+      fbDb.runTransaction(function(tx) {
+        return tx.get(docRef).then(function(doc) {
+          if (!doc.exists) return { touched: [] };
+          var d = doc.data();
+          var _wCharsMap = {};
+          var _rawWChars = d.chars;
+          if (_rawWChars && !Array.isArray(_rawWChars) && typeof _rawWChars === 'object') {
+            Object.keys(_rawWChars).forEach(function(k) { if (/^\d+$/.test(k)) _wCharsMap[k] = _rawWChars[k]; });
+          } else if (Array.isArray(_rawWChars)) {
+            _rawWChars.forEach(function(c, i) { _wCharsMap[String(i)] = c; });
+          } else {
+            _wCharsMap['0'] = d;
+          }
+          Object.keys(d).forEach(function(topKey) {
+            var m = topKey.match(/^chars\.(\d+)$/);
+            if (m) _wCharsMap[m[1]] = d[topKey];
+          });
+          var chars = _normalizeChars(_wCharsMap) || [];
+          var newCharsMap = Object.assign({}, _wCharsMap);
+          var touched = [];
+
+          for (var ci = 0; ci < chars.length; ci++) {
+            var key = playerId + ':' + ci;
+            var legacyMatch = (ci === 0 && assignedTo.indexOf(playerId) >= 0);
+            var assign = assignedTo.indexOf(key) >= 0 || legacyMatch;
+
+            var char = chars[ci] || {};
+            var atks = (char.attacks || []).slice();
+            var existingIdx = -1;
+            for (var k = 0; k < atks.length; k++) {
+              if (atks[k].masterWeaponId === weaponId) { existingIdx = k; break; }
+            }
+
+            var changed = false;
+            if (assign) {
+              var newAtk = {
+                name:          weaponData.name        || '',
+                bonus:         weaponData.bonus        || '',
+                dmg:           weaponData.dmg          || '',
+                type:          weaponData.type         || '',
+                attr:          weaponData.attr         || '',
+                range:         weaponData.range        || '',
+                magic:         weaponData.magic        || 0,
+                magicLabel:    weaponData.magicLabel   || '',
+                bonuses:       weaponData.bonuses      || {},
+                notes:         weaponData.notes        || '',
+                equipped:      false,
+                masterWeaponId: weaponId
+              };
+              if (existingIdx >= 0) {
+                if (_canonicalJSON(atks[existingIdx]) !== _canonicalJSON(newAtk)) { atks[existingIdx] = newAtk; changed = true; }
+              } else {
+                atks.push(newAtk); changed = true;
+              }
+            } else if (existingIdx >= 0) {
+              atks.splice(existingIdx, 1); changed = true;
+            }
+
+            if (changed) {
+              newCharsMap[String(ci)] = Object.assign({}, char, { attacks: atks });
+              touched.push(ci);
+            }
+          }
+
+          if (touched.length === 0) return { touched: [] };
+          var payload = { chars: newCharsMap };
+          Object.keys(d).forEach(function(topKey) {
+            if (/^chars\.\d+$/.test(topKey)) payload[topKey] = firebase.firestore.FieldValue.delete();
+          });
+          payload['_lastEditedBy'] = fbUser ? fbUser.uid : 'master';
+          payload['updatedAt'] = firebase.firestore.FieldValue.serverTimestamp();
+          tx.set(docRef, payload, { merge: true });
+          return { touched: touched };
+        });
+      }).then(function(result) {
+        if (result && result.touched.length > 0) {
+          dbgLog('ok', 'Master-Waffen-Zuweisung aktualisiert bei Spieler ' + playerId + ' (Charakter ' + result.touched.join(', ') + ')');
+        }
+      }).catch(function(e) {
+        dbgLog('err', 'Master-Waffen-Zuweisung fehlgeschlagen (Spieler ' + playerId + ')', e);
+      });
+    })(uid);
+  }
+}
+
+// Master-Waffe löschen
+function deleteMasterWeapon() {
+  var idx = masterWeaponEditIdx;
+  if (idx < 0) { closeMasterWeaponModal(); return; }
+  var w = masterWeapons[idx];
+  if (!confirm('Waffe "' + (w.name || 'Waffe') + '" wirklich löschen?')) return;
+
+  if (fbDb && w._id) {
+    // Zuerst aus allen Spielern entfernen
+    var removeData = Object.assign({}, w, { assignedTo: [] });
+    assignWeaponToPlayers(w._id, removeData);
+    fbDb.collection('masterItems').doc(w._id).delete().then(function() {
+      toast('Waffe gelöscht');
+      closeMasterWeaponModal();
+    }).catch(function(e) {
+      toast('Fehler beim Löschen: ' + (e.message || e.code || 'unbekannt'));
+    });
+  } else {
+    masterWeapons.splice(idx, 1);
+    buildMasterWeaponList();
+    closeMasterWeaponModal();
+    toast('Waffe gelöscht');
   }
 }
 
