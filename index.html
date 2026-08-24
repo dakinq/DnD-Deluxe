@@ -2966,7 +2966,6 @@ function initPlayerMode() {
       if (!_playerInitialLoadDone) {
         _playerInitialLoadDone = true;
         try {
-          // DEBUG: Frischer getDoc() VOR jeder Normalisierung/Migration/localLoad
           _dbgVerifyFirestore('VERIFY FIRESTORE INITIAL', fbUser.uid);
           var isLegacyArray = Array.isArray(d.chars);
           var normChars = _normalizeChars(d.chars);
@@ -3020,7 +3019,7 @@ function initPlayerMode() {
                   }
                   var charsMap = {};
                   freshD.chars.forEach(function(c, i) { charsMap[String(i)] = c; });
-                  _dbgFsWrite('migration/Array→Map/initial', fbUser.uid, 'all', 'n/a', 'n/a');
+                  _dbgFsWrite('migration/Array→Map', fbUser.uid, 'all', 'n/a', 'n/a');
                   tx.set(docRef, { chars: charsMap }, { merge: true });
                   return { alreadyMigrated: false };
                 });
@@ -4040,7 +4039,6 @@ function assignItemToPlayers(itemId, itemData) {
           if (touched.length === 0) return { touched: [] };
           payload['_lastEditedBy'] = fbUser ? fbUser.uid : 'master';
           payload['updatedAt'] = firebase.firestore.FieldValue.serverTimestamp();
-          _dbgFsWrite('assignItemToPlayers/tx.set', playerId, touched.join(','), 'n/a', 'items-only-patch');
           tx.set(docRef, payload, { merge: true });
           return { touched: touched };
         });
@@ -4115,6 +4113,59 @@ function escHtml(s) {
 var _fbLastSaved = {}; // "uid:charIdx" → zuletzt bestätigter Firestore-Stand (ohne _rev, s. _canonicalJSON)
 var _dirtyChars  = {}; // "uid:charIdx" → { snap, baseRev } solange eine lokale Änderung noch nicht bestätigt wurde
 
+
+// ══ DEBUG LOGGING — nur Ausgabe, null funktionaler Code ══════════════════
+function _dbgVerifyFirestore(label, uid) {
+  if (!fbDb || !uid) { console.warn('[' + label + '] fbDb/uid fehlt'); return; }
+  fbDb.collection('characters').doc(uid).get().then(function(snap) {
+    var fromCache = snap.metadata && snap.metadata.fromCache;
+    var d = snap.exists ? snap.data() : null;
+    var charsRaw = d ? d.chars : null;
+    var charsType = Array.isArray(charsRaw) ? 'array'
+                  : (charsRaw && typeof charsRaw === 'object' ? 'map' : 'null/missing');
+    var lines = [
+      '[' + label + ']',
+      'path: characters/' + uid,
+      'exists: ' + snap.exists,
+      'fromCache: ' + (fromCache ? 'YES (IndexedDB — NICHT Server!)' : 'NO (direkt vom Server)'),
+      'chars type: ' + charsType,
+      'doc keys: ' + (d ? Object.keys(d).join(',') : 'n/a')
+    ];
+    var rawE = {};
+    if (charsRaw && !Array.isArray(charsRaw) && typeof charsRaw === 'object') {
+      Object.keys(charsRaw).forEach(function(k) { rawE[k] = charsRaw[k]; });
+    } else if (Array.isArray(charsRaw)) {
+      charsRaw.forEach(function(c, i) { rawE[String(i)] = c; });
+    }
+    Object.keys(rawE).filter(function(k){ return /^\d+$/.test(k); })
+      .sort(function(a,b){ return Number(a)-Number(b); })
+      .forEach(function(k) {
+        var c = rawE[k] || {};
+        var ck = Object.keys(c);
+        lines.push('char' + k + ':'
+          + ' _rev-Feld vorhanden=' + (ck.indexOf('_rev') !== -1 ? 'JA' : 'NEIN')
+          + '  rev=' + (c._rev !== undefined ? c._rev : 'UNDEFINED')
+          + '  HP=' + (c.hp !== undefined ? c.hp : '?')
+          + '  TempHP=' + (c.temp !== undefined ? c.temp : (c.tempHp !== undefined ? c.tempHp : '?'))
+          + '  name=' + (c.charName || '?')
+          + '  alle Felder: ' + ck.join(','));
+      });
+    var msg = lines.join('\n');
+    console.log(msg);
+    dbgLog('info', lines.join(' | '));
+  }).catch(function(e) {
+    console.error('[' + label + '] getDoc fehlgeschlagen:', e);
+    dbgLog('err', '[' + label + '] getDoc fehlgeschlagen: ' + String(e));
+  });
+}
+function _dbgFsWrite(source, uid, charIdx, oldRev, newRev) {
+  var msg = '[FIRESTORE WRITE] source=' + source
+    + '  path=characters/' + uid
+    + '  charIdx=' + (charIdx !== undefined ? charIdx : 'n/a')
+    + '  oldRev=' + oldRev + '  newRev=' + newRev;
+  console.log(msg); dbgLog('info', msg);
+}
+// ══════════════════════════════════════════════════════════════════════════
 function _fbKey(uid, idx) {
   return uid + ':' + idx;
 }
@@ -4212,75 +4263,6 @@ function _mergeChar(base, mine, theirs) {
 //   2. seine Revision mit der erwarteten (zuletzt selbst bekannten) vergleichen
 //   3. nur bei Übereinstimmung schreiben und die Revision atomar erhöhen
 //   4. bei Konflikt: 3-Wege-Merge gegen den frischen Serverstand und erneut versuchen
-
-// ══════════════════════════════════════════════════════════════════════════
-// DEBUG ONLY — Liest das Firestore-Dokument frisch per getDoc() und loggt
-// den vollständigen chars-Stand. Keinerlei Schreiboperationen, kein Einfluss
-// auf characters[], _fbLastSaved oder sonstige Logik.
-// ══════════════════════════════════════════════════════════════════════════
-function _dbgVerifyFirestore(label, uid) {
-  if (!fbDb || !uid) {
-    console.warn('[' + label + '] fbDb oder uid nicht verfügbar');
-    return;
-  }
-  var docRef = fbDb.collection('characters').doc(uid);
-  docRef.get().then(function(snap) {
-    var fromCache = snap.metadata && snap.metadata.fromCache;
-    var d = snap.exists ? snap.data() : null;
-    var charsRaw = d ? d.chars : null;
-    var charsType = Array.isArray(charsRaw) ? 'array'
-                  : (charsRaw && typeof charsRaw === 'object' ? 'map' : 'null/missing');
-    var normChars = (function(chars) {
-      if (Array.isArray(chars)) return chars;
-      if (chars && typeof chars === 'object') {
-        var keys = Object.keys(chars).filter(function(k){ return /^\d+$/.test(k); }).sort(function(a,b){ return a-b; });
-        if (keys.length > 0) {
-          var maxIdx = Math.max.apply(null, keys.map(Number));
-          var arr = [];
-          for (var i = 0; i <= maxIdx; i++) arr[i] = chars[String(i)] || {};
-          return arr;
-        }
-      }
-      return [];
-    })(charsRaw);
-
-    var lines = [
-      '[' + label + ']',
-      'path: characters/' + uid,
-      'exists: ' + snap.exists,
-      'fromCache: ' + (fromCache ? 'YES — IndexedDB/Offline-Cache, NICHT Server!' : 'NO — direkt vom Server'),
-      'chars type: ' + charsType
-    ];
-    for (var i = 0; i < normChars.length; i++) {
-      var c = normChars[i] || {};
-      lines.push(
-        'char' + i + ' rev: ' + (c._rev !== undefined ? c._rev : 'UNDEFINED') +
-        '  HP: ' + (c.hp !== undefined ? c.hp : '?') +
-        '  TempHP: ' + (c.temp !== undefined ? c.temp : (c.tempHp !== undefined ? c.tempHp : '?')) +
-        '  name: ' + (c.charName || '?')
-      );
-    }
-    var msg = lines.join('\n');
-    console.log(msg);
-    dbgLog('info', lines.join(' | '));
-  }).catch(function(e) {
-    console.error('[' + label + '] getDoc() fehlgeschlagen:', e);
-    dbgLog('err', '[' + label + '] getDoc() fehlgeschlagen: ' + String(e));
-  });
-}
-
-// Loggt jeden Firestore-Write (nur Logging, kein Einfluss auf Logik)
-function _dbgFsWrite(source, uid, charIdx, oldRev, newRev) {
-  var msg = '[FIRESTORE WRITE]' +
-    '\n  source: ' + source +
-    '\n  path: characters/' + uid +
-    '\n  charIdx: ' + (charIdx !== undefined ? charIdx : 'n/a') +
-    '\n  oldRev: ' + oldRev +
-    '\n  newRev: ' + newRev;
-  console.log(msg);
-  dbgLog('info', '[FIRESTORE WRITE] source=' + source + ' charIdx=' + charIdx + ' oldRev=' + oldRev + ' newRev=' + newRev);
-}
-// ══════════════════════════════════════════════════════════════════════════
 function _fbWriteCharacter(targetUid, charIdx, rawSnap, onDone, _attempt, _expectedRevOverride) {
   if (!fbUser || !fbDb) { if (onDone) onDone(false); return; }
   _attempt = _attempt || 0;
@@ -4316,11 +4298,36 @@ function _fbWriteCharacter(targetUid, charIdx, rawSnap, onDone, _attempt, _expec
         throw conflictErr;
       }
 
-      var newChar = Object.assign({}, rawSnap, { _rev: serverRev + 1 });
+      // Sicherstellen: rawSnap enthält kein altes _rev das Object.assign
+      // überschreiben könnte — und newChar._rev ist definitiv eine Zahl (kein undefined).
+      var cleanSnap = Object.assign({}, rawSnap);
+      delete cleanSnap._rev; // explizit entfernen, damit Object.assign sauber ist
+      var newRev = serverRev + 1;
+      var newChar = Object.assign({}, cleanSnap, { _rev: newRev });
+      // Paranoia-Check: _rev muss eine Zahl sein
+      if (typeof newChar._rev !== 'number') {
+        dbgLog('err', '[FIX] newChar._rev ist kein Number: ' + typeof newChar._rev + ' — erzwinge 1');
+        newChar._rev = 1;
+      }
       var payload = {};
       payload[fieldPath] = newChar;
       payload['_lastEditedBy'] = fbUser.uid;
       payload['updatedAt'] = firebase.firestore.FieldValue.serverTimestamp();
+      // DEBUG: Exakten Payload VOR tx.set loggen
+      (function() {
+        var c = newChar;
+        var msg = '[TX PAYLOAD]' +
+          '\n  charIdx=' + charIdx +
+          '\n  payload._rev=' + c._rev +
+          '\n  payload.HP=' + c.hp +
+          '\n  payload.TempHP=' + (c.temp !== undefined ? c.temp : c.tempHp) +
+          '\n  payload.name=' + c.charName +
+          '\n  fieldPath=' + fieldPath +
+          '\n  newChar keys mit _rev=' + JSON.stringify(Object.keys(c).indexOf('_rev') !== -1) +
+          '\n  newChar JSON (100 Zeichen)=' + JSON.stringify(c).substring(0, 100);
+        console.log(msg);
+        dbgLog('info', msg.replace(/\n  /g, ' | '));
+      })();
       _dbgFsWrite('_fbWriteCharacter/tx.set', targetUid, charIdx, serverRev, newChar._rev);
       tx.set(docRef, payload, { merge: true });
       return newChar;
@@ -4352,7 +4359,6 @@ function _fbWriteCharacter(targetUid, charIdx, rawSnap, onDone, _attempt, _expec
     // Der _rev-Wert von newChar ist bereits in characters[charIdx] gespeichert
     // und wird beim nächsten gather()/fbSave() automatisch verwendet.
     dbgLog('ok', 'Speichern erfolgreich (Charakter ' + charIdx + ', doc: characters/' + targetUid + ', rev ' + newChar._rev + ')');
-    // DEBUG: Frischer getDoc() direkt nach dem ACK — zeigt was TATSÄCHLICH in Firestore steht
     _dbgVerifyFirestore('VERIFY FIRESTORE AFTER SAVE', targetUid);
     if (onDone) onDone(true);
   }).catch(function(e) {
@@ -4390,7 +4396,6 @@ function _fbWriteCharacter(targetUid, charIdx, rawSnap, onDone, _attempt, _expec
 // bei einem laufenden Live-Update (siehe initPlayerMode()).
 function _fbPersistActiveIdx(targetUid, idx) {
   if (!fbUser || !fbDb) return;
-  _dbgFsWrite('_fbPersistActiveIdx/.set', targetUid, 'activeCharIdx-only', 'n/a', idx);
   fbDb.collection('characters').doc(targetUid).set({
     activeCharIdx: idx,
     _lastEditedBy: fbUser.uid,
@@ -4483,7 +4488,6 @@ function _fbDeleteCharacter(targetUid, deleteIdx, onDone) {
       payload['chars.' + (chars.length - 1)] = firebase.firestore.FieldValue.delete();
       payload['_lastEditedBy'] = fbUser.uid;
       payload['updatedAt'] = firebase.firestore.FieldValue.serverTimestamp();
-      _dbgFsWrite('_fbDeleteCharacter/tx.set', targetUid, deleteIdx, 'n/a', 'DELETED');
       tx.set(docRef, payload, { merge: true });
       return { alreadyGone: false, newLength: remaining.length };
     });
