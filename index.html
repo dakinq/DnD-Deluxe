@@ -1371,7 +1371,7 @@ function buildRestSettings(){
   for(var ei=1;ei<=6;ei++){
     exhRows += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'
       + '<div style="width:24px;height:24px;border-radius:50%;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.3);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:bold;color:#c9a84c;flex-shrink:0;">' + ei + '</div>'
-      + '<input value="' + (exhTexts[ei]||'') + '" placeholder="Stufe ' + ei + '..." '
+      + '<input value="' + escHtml(exhTexts[ei]||'') + '" placeholder="Stufe ' + ei + '..." '
       + 'oninput="exhTexts[' + ei + ']=this.value;buildExhaustion();autoSave();" '
       + 'style="flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.15);border-radius:8px;color:#f0e6c8;font-size:13px;padding:6px 10px;outline:none;font-family:Georgia,serif;">'
       + '</div>';
@@ -1552,7 +1552,7 @@ function buildSkills(){
       '<button class="'+dc+'" onclick="cycleProf('+i+')"></button>'+
       '<span class="skill-name">'+s.name+'</span>'+
       '<span class="skill-attr">'+s.attr+'</span>'+
-      '<input class="skill-mod" value="'+s.val+'" oninput="skills['+i+'].val=this.value;autoSave()">'+
+      '<input class="skill-mod" value="'+escHtml(String(s.val||''))+'" oninput="skills['+i+'].val=this.value;autoSave()">'+
       '</div>';
   }
   document.getElementById('skillList').innerHTML=html;
@@ -1580,18 +1580,18 @@ function buildAtks(){
           '<div class="item-equip-dot'+(a.equipped?' on':'')+'"></div>'+
         '</button>'+
         '<button onclick="openAtkModal('+i+')" style="flex:1;background:none;border:none;text-align:left;padding:0;font-family:Georgia,serif;display:flex;align-items:center;gap:6px;">'+
-          '<span style="font-size:15px;color:'+(a.equipped?'var(--gold-light)':hasNote?'var(--gold-light)':'var(--text-main)')+';">'+(a.name||'Angriff')+'</span>'+
-          (badge?'<span class="magic-badge '+mBadge[m]+'">'+badge+'</span>':'')+
-          (bonusSummary(a.bonuses)?'<span style="font-size:11px;color:#c9a84c;background:rgba(201,168,76,0.12);border-radius:4px;padding:1px 5px;">'+bonusSummary(a.bonuses)+'</span>':'')+
+          '<span style="font-size:15px;color:'+(a.equipped?'var(--gold-light)':hasNote?'var(--gold-light)':'var(--text-main)')+';">'+escHtml(a.name||'Angriff')+'</span>'+
+          (badge?'<span class="magic-badge '+mBadge[m]+'">'+escHtml(badge)+'</span>':'')+
+          (bonusSummary(a.bonuses)?'<span style="font-size:11px;color:#c9a84c;background:rgba(201,168,76,0.12);border-radius:4px;padding:1px 5px;">'+escHtml(bonusSummary(a.bonuses))+'</span>':'')+
           (hasNote?'<span style="font-size:11px;color:var(--gold-dim);">✎</span>':'')+
         '</button>'+
         '<button class="atk-del" onclick="delAtk('+i+')">✕</button>'+
       '</div>'+
       '<div class="atk-grid">'+
-        '<div><span class="atk-field-label">Bonus</span><div class="atk-field-val" style="color:var(--gold);">'+(a.bonus||'—')+'</div></div>'+
-        '<div><span class="atk-field-label">Schaden</span><div class="atk-field-val">'+(a.dmg||'—')+'</div></div>'+
-        '<div><span class="atk-field-label">Typ</span><div class="atk-field-val">'+(a.type||'—')+'</div></div>'+
-        '<div><span class="atk-field-label">Reichweite</span><div class="atk-field-val">'+(a.range||'—')+'</div></div>'+
+        '<div><span class="atk-field-label">Bonus</span><div class="atk-field-val" style="color:var(--gold);">'+escHtml(a.bonus||'—')+'</div></div>'+
+        '<div><span class="atk-field-label">Schaden</span><div class="atk-field-val">'+escHtml(a.dmg||'—')+'</div></div>'+
+        '<div><span class="atk-field-label">Typ</span><div class="atk-field-val">'+escHtml(a.type||'—')+'</div></div>'+
+        '<div><span class="atk-field-label">Reichweite</span><div class="atk-field-val">'+escHtml(a.range||'—')+'</div></div>'+
       '</div>'+
     '</div>';
   }
@@ -1670,7 +1670,7 @@ function buildSpells(){
       for(var ol=0;ol<=9;ol++) opts+='<option value="'+ol+'"'+(sp.lv===ol?' selected':'')+'>'+(ol===0?'ST':ol)+'</option>';
       html+='<div class="spell-row'+(sp.conc?' spell-conc-active':'')+'" style="'+(sp.conc?'background:rgba(201,168,76,0.18);border-radius:10px;border-bottom:none;margin-bottom:2px;box-shadow:0 0 18px rgba(201,168,76,0.35),inset 0 0 0 1.5px rgba(201,168,76,0.5);':'')+'">'+
         '<button class="spell-prep-btn'+(sp.prep?' active':'')+'" onclick="togglePrep('+idx+')"></button>'+
-        '<button class="spell-name-btn" onclick="openSpellModal('+idx+')">'+(sp.name||'Unbenannt')+(sp.notes?'  <span style="color:var(--gold-dim);font-size:11px;">✎</span>':'')+'</button>'+
+        '<button class="spell-name-btn" onclick="openSpellModal('+idx+')">'+escHtml(sp.name||'Unbenannt')+(sp.notes?'  <span style="color:var(--gold-dim);font-size:11px;">✎</span>':'')+'</button>'+
         '<button class="spell-del" onclick="delSpell('+idx+')">✕</button>'+
         '</div>';
     }
@@ -1703,7 +1703,7 @@ function openSpellModal(i, isNew){
     '<button class="modal-close" onclick="closeSpellModalDirect(window._spellModalIsNew)">✕</button>'+
 
     // Name — no label, big gold input
-    '<input id="modalSpellNameInput" value="'+(sp.name||'')+'" placeholder="Zaubername..." '+
+    '<input id="modalSpellNameInput" value="'+escHtml(sp.name||'')+'" placeholder="Zaubername..." '+
       'oninput="if(activeSpellIdx>=0){spells[activeSpellIdx].name=this.value;}" '+
       'style="width:100%;font-size:20px;font-weight:bold;color:#e8cc7a;background:transparent;border:none;border-bottom:1px solid rgba(201,168,76,0.3);outline:none;padding:4px 0 6px;margin-bottom:10px;font-family:Georgia,serif;">'+
 
@@ -1716,11 +1716,11 @@ function openSpellModal(i, isNew){
         '</select>'+
       '</div>'+
       '<div><span style="'+lb+'">Dauer</span>'+
-        '<input id="modalSpellDuration" value="'+(sp.duration||'')+'" placeholder="1 Minute" '+
+        '<input id="modalSpellDuration" value="'+escHtml(sp.duration||'')+'" placeholder="1 Minute" '+
           'oninput="if(activeSpellIdx>=0){spells[activeSpellIdx].duration=this.value;}" style="'+inp+'height:34px;">'+
       '</div>'+
       '<div><span style="'+lb+'">Reichweite</span>'+
-        '<input id="modalSpellRange" value="'+(sp.range||'')+'" placeholder="18 m" '+
+        '<input id="modalSpellRange" value="'+escHtml(sp.range||'')+'" placeholder="18 m" '+
           'oninput="if(activeSpellIdx>=0){spells[activeSpellIdx].range=this.value;}" style="'+inp+'height:34px;">'+
       '</div>'+
     '</div>'+
@@ -1754,7 +1754,7 @@ function openSpellModal(i, isNew){
     '<div style="'+lb+'margin-bottom:4px;">Notizen</div>'+
     '<textarea id="modalSpellNotes" placeholder="Beschreibung, Effekte..." '+
       'oninput="if(activeSpellIdx>=0){spells[activeSpellIdx].notes=this.value;autoSave();}" '+
-      'style="width:100%;flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.15);border-radius:10px;color:#f0e6c8;font-size:15px;line-height:1.8;padding:12px;resize:none;min-height:80px;overflow-y:auto;outline:none;font-family:Georgia,serif;box-sizing:border-box;">'+(sp.notes||'')+'</textarea>'+
+      'style="width:100%;flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.15);border-radius:10px;color:#f0e6c8;font-size:15px;line-height:1.8;padding:12px;resize:none;min-height:80px;overflow-y:auto;outline:none;font-family:Georgia,serif;box-sizing:border-box;">'+escHtml(sp.notes||'')+'</textarea>'+
     '<div id="modalRestSettings" style="display:none;"></div>'+
     '<button class="modal-save" id="modalSaveBtn" onclick="closeSpellModalDirect(false)">✓ Fertig</button>';
 
@@ -1836,7 +1836,7 @@ function openItemModal(i, isNew){
 
     // Name + Anzahl in einer Zeile
     '<div style="display:flex;align-items:flex-end;gap:10px;margin-bottom:10px;">'+
-      '<input value="'+(it.name||'')+'" placeholder="Gegenstandsname..." '+
+      '<input value="'+escHtml(it.name||'')+'" placeholder="Gegenstandsname..." '+
         'oninput="items[activeItemIdx].name=this.value;autoSave();" '+
         'style="flex:1;font-size:20px;font-weight:bold;color:#e8cc7a;background:transparent;border:none;border-bottom:1px solid rgba(201,168,76,0.3);outline:none;padding:4px 0 4px;font-family:Georgia,serif;">'+
       '<div style="flex-shrink:0;">'+
@@ -1867,7 +1867,7 @@ function openItemModal(i, isNew){
     '<span style="'+lb+'margin-bottom:4px;">Notizen</span>'+
     '<textarea placeholder="Eigenschaften, Gewicht, Wert..." '+
       'oninput="items[activeItemIdx].notes=this.value;autoSave();" '+
-      'style="width:100%;flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.15);border-radius:10px;color:#f0e6c8;font-size:15px;line-height:1.8;padding:12px;resize:none;min-height:80px;overflow-y:auto;outline:none;font-family:Georgia,serif;box-sizing:border-box;">'+(it.notes||'')+'</textarea>'+
+      'style="width:100%;flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.15);border-radius:10px;color:#f0e6c8;font-size:15px;line-height:1.8;padding:12px;resize:none;min-height:80px;overflow-y:auto;outline:none;font-family:Georgia,serif;box-sizing:border-box;">'+escHtml(it.notes||'')+'</textarea>'+
     '<button class="modal-save" onclick="closeItemModal()">✓ Fertig</button>';
   document.getElementById('spellModal').classList.add('show');
   // Rebuild bonus panel via DOM to avoid onclick issues
@@ -2100,34 +2100,34 @@ function openAtkModal(i, isNew){
   }
   modal.innerHTML =
     '<button class="modal-close" onclick="closeAtkModal(window._atkModalIsNew)">✕</button>'+
-    '<input value="'+(a.name||'')+'" placeholder="Waffenname..." '+
+    '<input value="'+escHtml(a.name||'')+'" placeholder="Waffenname..." '+
       'oninput="attacks[activeAtkIdx].name=this.value;autoSave();" '+
       'style="width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(201,168,76,0.2);border-radius:8px;color:#e8cc7a;font-size:20px;font-weight:bold;padding:8px 10px;outline:none;font-family:Georgia,serif;margin-bottom:10px;">'+
     '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:0;margin-bottom:8px;">'+
       '<div><span style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#a08c60;margin-bottom:3px;display:block;">Angriffsbonus</span>'+
-        '<input value="'+(a.bonus||'')+'" placeholder="+0" oninput="attacks[activeAtkIdx].bonus=this.value;autoSave();" style="width:100%;height:36px;background:rgba(255,255,255,0.05);border:1px solid rgba(201,168,76,0.2);border-radius:8px;color:#f0e6c8;font-size:14px;padding:0 8px;outline:none;font-family:Georgia,serif;margin-bottom:8px;box-sizing:border-box;"></div>'+
+        '<input value="'+escHtml(a.bonus||'')+'" placeholder="+0" oninput="attacks[activeAtkIdx].bonus=this.value;autoSave();" style="width:100%;height:36px;background:rgba(255,255,255,0.05);border:1px solid rgba(201,168,76,0.2);border-radius:8px;color:#f0e6c8;font-size:14px;padding:0 8px;outline:none;font-family:Georgia,serif;margin-bottom:8px;box-sizing:border-box;"></div>'+
       '<div><span style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#a08c60;margin-bottom:3px;display:block;">Schaden</span>'+
-        '<input value="'+(a.dmg||'')+'" placeholder="1W6" oninput="attacks[activeAtkIdx].dmg=this.value;autoSave();" style="width:100%;height:36px;background:rgba(255,255,255,0.05);border:1px solid rgba(201,168,76,0.2);border-radius:8px;color:#f0e6c8;font-size:14px;padding:0 8px;outline:none;font-family:Georgia,serif;margin-bottom:8px;box-sizing:border-box;"></div>'+
+        '<input value="'+escHtml(a.dmg||'')+'" placeholder="1W6" oninput="attacks[activeAtkIdx].dmg=this.value;autoSave();" style="width:100%;height:36px;background:rgba(255,255,255,0.05);border:1px solid rgba(201,168,76,0.2);border-radius:8px;color:#f0e6c8;font-size:14px;padding:0 8px;outline:none;font-family:Georgia,serif;margin-bottom:8px;box-sizing:border-box;"></div>'+
       '<div><span style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#a08c60;margin-bottom:3px;display:block;">Schadenstyp</span>'+
-        '<input value="'+(a.type||'')+'" placeholder="Stich" oninput="attacks[activeAtkIdx].type=this.value;autoSave();" style="width:100%;height:36px;background:rgba(255,255,255,0.05);border:1px solid rgba(201,168,76,0.2);border-radius:8px;color:#f0e6c8;font-size:14px;padding:0 8px;outline:none;font-family:Georgia,serif;margin-bottom:8px;box-sizing:border-box;"></div>'+
+        '<input value="'+escHtml(a.type||'')+'" placeholder="Stich" oninput="attacks[activeAtkIdx].type=this.value;autoSave();" style="width:100%;height:36px;background:rgba(255,255,255,0.05);border:1px solid rgba(201,168,76,0.2);border-radius:8px;color:#f0e6c8;font-size:14px;padding:0 8px;outline:none;font-family:Georgia,serif;margin-bottom:8px;box-sizing:border-box;"></div>'+
     '</div>'+
     '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:0;margin-bottom:8px;">'+
       '<div><span style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#a08c60;margin-bottom:3px;display:block;">Attribut</span>'+
-        '<input value="'+(a.attr||'')+'" placeholder="STÄ" oninput="attacks[activeAtkIdx].attr=this.value;autoSave();" style="width:100%;height:36px;background:rgba(255,255,255,0.05);border:1px solid rgba(201,168,76,0.2);border-radius:8px;color:#f0e6c8;font-size:14px;padding:0 8px;outline:none;font-family:Georgia,serif;margin-bottom:8px;box-sizing:border-box;"></div>'+
+        '<input value="'+escHtml(a.attr||'')+'" placeholder="STÄ" oninput="attacks[activeAtkIdx].attr=this.value;autoSave();" style="width:100%;height:36px;background:rgba(255,255,255,0.05);border:1px solid rgba(201,168,76,0.2);border-radius:8px;color:#f0e6c8;font-size:14px;padding:0 8px;outline:none;font-family:Georgia,serif;margin-bottom:8px;box-sizing:border-box;"></div>'+
       '<div><span style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#a08c60;margin-bottom:3px;display:block;">Reichweite</span>'+
-        '<input value="'+(a.range||'')+'" placeholder="1,5m" oninput="attacks[activeAtkIdx].range=this.value;autoSave();" style="width:100%;height:36px;background:rgba(255,255,255,0.05);border:1px solid rgba(201,168,76,0.2);border-radius:8px;color:#f0e6c8;font-size:14px;padding:0 8px;outline:none;font-family:Georgia,serif;margin-bottom:8px;box-sizing:border-box;"></div>'+
+        '<input value="'+escHtml(a.range||'')+'" placeholder="1,5m" oninput="attacks[activeAtkIdx].range=this.value;autoSave();" style="width:100%;height:36px;background:rgba(255,255,255,0.05);border:1px solid rgba(201,168,76,0.2);border-radius:8px;color:#f0e6c8;font-size:14px;padding:0 8px;outline:none;font-family:Georgia,serif;margin-bottom:8px;box-sizing:border-box;"></div>'+
       '<div><span style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#a08c60;margin-bottom:3px;display:block;">Magiestufe</span>'+
         '<div style="display:flex;gap:4px;">'+magicBtns+'</div></div>'+
     '</div>'+
     '<div id="atkBonusPanel" style="margin-bottom:8px;"></div>'+
     '<span style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#a08c60;margin-bottom:3px;display:block;">Bezeichnung (z.B. Flammend +1)</span>'+
-    '<input value="'+(a.magicLabel||'')+'" placeholder="optional..." '+
+    '<input value="'+escHtml(a.magicLabel||'')+'" placeholder="optional..." '+
       'oninput="attacks[activeAtkIdx].magicLabel=this.value;autoSave();buildAtks();" '+
       'style="width:100%;height:36px;background:rgba(255,255,255,0.05);border:1px solid rgba(201,168,76,0.2);border-radius:8px;color:#f0e6c8;font-size:14px;padding:0 8px;outline:none;font-family:Georgia,serif;margin-bottom:8px;box-sizing:border-box;margin-bottom:8px;">'+
     '<span style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#a08c60;margin-bottom:3px;display:block;">Notizen</span>'+
     '<textarea placeholder="Beschreibung, Effekte..." '+
       'oninput="attacks[activeAtkIdx].notes=this.value;autoSave();" '+
-      'style="width:100%;flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.15);border-radius:10px;color:#f0e6c8;font-size:14px;line-height:1.7;padding:10px;resize:none;min-height:60px;outline:none;font-family:Georgia,serif;">'+(a.notes||'')+'</textarea>'+
+      'style="width:100%;flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.15);border-radius:10px;color:#f0e6c8;font-size:14px;line-height:1.7;padding:10px;resize:none;min-height:60px;outline:none;font-family:Georgia,serif;">'+escHtml(a.notes||'')+'</textarea>'+
     '<button class="modal-save" onclick="closeAtkModal()">✓ Fertig</button>';
   document.getElementById('spellModal').classList.add('show');
   // Build bonus panel for attack
@@ -2418,8 +2418,8 @@ function buildItems(){
       '</button>'+
       '<button onclick="openItemModal('+i+')" style="flex:1;background:none;border:none;text-align:left;padding:0;color:'+nameColor+';font-size:15px;display:flex;align-items:center;gap:5px;">'+
         (isMagic?'<span class="item-magic-gem">✨</span>':'')+
-        '<span>'+(it.name||'Gegenstand')+'</span>'+
-        (bonusSummary(it.bonuses)?'<span style="font-size:11px;color:#c9a84c;background:rgba(201,168,76,0.12);border-radius:4px;padding:1px 5px;margin-left:2px;">'+bonusSummary(it.bonuses)+'</span>':'')+
+        '<span>'+escHtml(it.name||'Gegenstand')+'</span>'+
+        (bonusSummary(it.bonuses)?'<span style="font-size:11px;color:#c9a84c;background:rgba(201,168,76,0.12);border-radius:4px;padding:1px 5px;margin-left:2px;">'+escHtml(bonusSummary(it.bonuses))+'</span>':'')+
         (hasNote?'<span style="color:var(--gold-dim);font-size:11px;">✎</span>':'')+
       '</button>'+
       '<input class="item-qty-in" type="number" value="'+it.qty+'" min="0" oninput="items['+i+'].qty=parseInt(this.value)||0;autoSave()">'+
