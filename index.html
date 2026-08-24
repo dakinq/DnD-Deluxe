@@ -2989,7 +2989,19 @@ function initPlayerMode() {
           // DEBUG: Roher Firestore-Stand VOR jeder Normalisierung/Migration
           _dbgVerifyFirestore('VERIFY FIRESTORE INITIAL', fbUser.uid);
           var isLegacyArray = Array.isArray(d.chars);
-          var normChars = _normalizeChars(d.chars);
+          // Kanonische chars-Map: Phantom-Felder einbeziehen
+          var _initCharsMap = {};
+          var _rawInitChars = d.chars;
+          if (_rawInitChars && !Array.isArray(_rawInitChars) && typeof _rawInitChars === 'object') {
+            Object.keys(_rawInitChars).forEach(function(k) { if (/^\d+$/.test(k)) _initCharsMap[k] = _rawInitChars[k]; });
+          } else if (Array.isArray(_rawInitChars)) {
+            _rawInitChars.forEach(function(c, i) { _initCharsMap[String(i)] = c; });
+          }
+          Object.keys(d).forEach(function(topKey) {
+            var m = topKey.match(/^chars\.(\d+)$/);
+            if (m) _initCharsMap[m[1]] = d[topKey];
+          });
+          var normChars = _normalizeChars(_initCharsMap);
           if (normChars && normChars.length > 0) {
             characters = normChars;
 
@@ -3054,6 +3066,48 @@ function initPlayerMode() {
             }
             _flushDirty(fbUser.uid); // etwaige Offline-Änderungen von vor einem Neustart nachsenden
             _flushPendingDeletes(fbUser.uid); // etwaige Offline-Löschungen von vor einem Neustart nachsenden
+            // ── EINMALIGE MIGRATION: Phantom-Felder bereinigen ──
+            // Wenn das Dokument "chars.N"-Felder als Top-Level-Keys enthält
+            // (erzeugt durch früheren Fehler mit dot-notation String-Keys),
+            // werden diese jetzt einmalig durch eine saubere chars-Map ersetzt.
+            // Dies ist idempotent und schadet nicht, wenn das Dokument bereits sauber ist.
+            (function() {
+              var phantomKeys = Object.keys(d).filter(function(k){ return /^chars\.\d+$/.test(k); });
+              if (phantomKeys.length === 0) return; // Dokument bereits sauber
+              dbgLog('warn', 'Einmalige Migration: ' + phantomKeys.length + ' Phantom-Felder (' + phantomKeys.join(', ') + ') werden bereinigt...');
+              fbDb.runTransaction(function(tx) {
+                return tx.get(docRef).then(function(freshDoc) {
+                  var freshD = freshDoc.exists ? freshDoc.data() : {};
+                  var freshPhantomKeys = Object.keys(freshD).filter(function(k){ return /^chars\.\d+$/.test(k); });
+                  if (freshPhantomKeys.length === 0) return { alreadyCleaned: true };
+                  // Kanonische Map aus allen Quellen aufbauen
+                  var cleanMap = {};
+                  var rc = freshD.chars;
+                  if (rc && !Array.isArray(rc) && typeof rc === 'object') {
+                    Object.keys(rc).forEach(function(k){ if (/^\d+$/.test(k)) cleanMap[k] = rc[k]; });
+                  } else if (Array.isArray(rc)) {
+                    rc.forEach(function(c, i){ cleanMap[String(i)] = c; });
+                  }
+                  freshPhantomKeys.forEach(function(pk) {
+                    var m = pk.match(/^chars\.(\d+)$/);
+                    if (m) cleanMap[m[1]] = freshD[pk];
+                  });
+                  var migrPayload = { chars: cleanMap };
+                  freshPhantomKeys.forEach(function(pk) {
+                    migrPayload[pk] = firebase.firestore.FieldValue.delete();
+                  });
+                  migrPayload['updatedAt'] = firebase.firestore.FieldValue.serverTimestamp();
+                  tx.set(docRef, migrPayload, { merge: true });
+                  return { alreadyCleaned: false, cleaned: freshPhantomKeys.length };
+                });
+              }).then(function(r) {
+                if (r && !r.alreadyCleaned) {
+                  dbgLog('ok', 'Phantom-Feld-Migration erfolgreich: ' + r.cleaned + ' Felder bereinigt. Dokument hat jetzt saubere chars-Map.');
+                }
+              }).catch(function(e) {
+                dbgLog('err', 'Phantom-Feld-Migration fehlgeschlagen (kein Datenverlust — nächster Write bereinigt ebenfalls)', e);
+              });
+            })();
           } else {
             // Dokument existiert, aber weder Array noch Map mit chars (ältestes Format:
             // Dokument selbst war der einzige Charakter). Übernehmen und als Charakter 0 anlegen.
@@ -3096,7 +3150,21 @@ function initPlayerMode() {
 
       try {
         var isLegacyArray2 = Array.isArray(d.chars);
-        var incomingChars = _normalizeChars(d.chars);
+        // Kanonische chars-Map: Phantom-Felder einbeziehen (gleiche Logik wie _fbWriteCharacter).
+        // Wenn das Dokument "chars" als Objekt UND "chars.N" als Top-Level-Phantom-Felder hat,
+        // enthält d.chars nur den alten verschachtelten Stand — die Phantom-Keys überschreiben ihn.
+        var _ssCharsMap = {};
+        var _rawSsChars = d.chars;
+        if (_rawSsChars && !Array.isArray(_rawSsChars) && typeof _rawSsChars === 'object') {
+          Object.keys(_rawSsChars).forEach(function(k) { if (/^\d+$/.test(k)) _ssCharsMap[k] = _rawSsChars[k]; });
+        } else if (Array.isArray(_rawSsChars)) {
+          _rawSsChars.forEach(function(c, i) { _ssCharsMap[String(i)] = c; });
+        }
+        Object.keys(d).forEach(function(topKey) {
+          var m = topKey.match(/^chars\.(\d+)$/);
+          if (m) _ssCharsMap[m[1]] = d[topKey];
+        });
+        var incomingChars = _normalizeChars(_ssCharsMap);
         if (!incomingChars) { return; }
 
         var anyApplied = false;
@@ -3116,25 +3184,27 @@ function initPlayerMode() {
           // lokalen Stand niemals ersetzen.
           var localChar = characters[idx];
           var localRev = (localChar && localChar._rev) || 0;
-          var incomingRev = incomingChar._rev || 0;
+          // WICHTIG: incomingChar._rev kann undefined sein wenn das Dokument
+          // noch Phantom-Felder enthält und _canonicalCharsFromDoc() einen
+          // Eintrag ohne _rev zurückgibt (z.B. aus dem alten chars-Objekt).
+          // In diesem Fall: Snapshot nicht übernehmen — er ist unvollständig.
+          // Die einmalige Migration (siehe _flushDirty-Block) bereinigt das.
+          var incomingRev = incomingChar._rev;
+          if (incomingRev === undefined || incomingRev === null) {
+            dbgLog('warn', 'Snapshot für Charakter ' + idx + ' hat kein _rev-Feld (undefined) — ignoriert. Datenstruktur wird durch Migration bereinigt.');
+            continue;
+          }
+          incomingRev = Number(incomingRev) || 0;
 
-          // BUGFIX Safari/iPhone PWA: Nach einem erfolgreichen Save (localRev >= 1)
-          // liefert Firestore manchmal einen gecachten Snapshot mit rev 0 zurück —
-          // das ist ein veralteter Stand vom Server-Cache, der noch nicht die neue
-          // Revision kennt. Dieser darf den lokalen Stand (der bereits gespeichert
-          // wurde) niemals überschreiben. Normale Prüfung (incomingRev < localRev)
-          // reicht hier: rev 0 < localRev 1 → wird bereits ignoriert. Aber zur
-          // Sicherheit explizit: wenn incomingRev === 0 und wir schon lokal höher
-          // sind, ist das immer ein veralteter/gecachter Stand.
+          // Ein älterer Cloud-Stand darf einen neueren lokalen Stand niemals überschreiben.
           if (incomingRev < localRev) {
             dbgLog('warn', 'Älterer Cloud-Stand für Charakter ' + idx + ' (rev ' + incomingRev + ' < lokal ' + localRev + ') ignoriert.');
             continue;
           }
 
-          // Zusätzlich: rev 0 von Firestore nach einem bekannten erfolgreichen Save
-          // ist immer ein Cache-Artefakt — ignorieren wenn wir schon lokal rev > 0 haben.
+          // Rev 0 nach einem lokalen Stand > 0 ist immer ein veralteter/gecachter Stand.
           if (incomingRev === 0 && localRev > 0) {
-            dbgLog('warn', 'Rev-0-Snapshot für Charakter ' + idx + ' nach lokalem Stand (rev ' + localRev + ') ignoriert — Safari-Cache-Artefakt.');
+            dbgLog('warn', 'Rev-0-Snapshot für Charakter ' + idx + ' nach lokalem Stand (rev ' + localRev + ') ignoriert — veralteter Cache-Stand.');
             continue;
           }
 
@@ -3276,7 +3346,7 @@ function initMasterMode() {
       var uid = doc.id;
       if (uid === fbUser.uid) return;
       var d = doc.data();
-      var chars = _normalizeChars(d.chars);
+      var chars = _canonicalCharsFromDoc(d);
       var idx = chars ? _clampIdx(d.activeCharIdx, chars) : 0;
       var name = (chars && chars[idx] && chars[idx].charName) ? chars[idx].charName : uid;
       masterPlayers[uid] = { uid: uid, name: name, liveData: null };
@@ -3337,7 +3407,7 @@ function startLiveListener(uid) {
   var unsub = fbDb.collection('characters').doc(uid).onSnapshot(function(doc) {
     if (!doc.exists) return;
     var d = doc.data();
-    var chars = _normalizeChars(d.chars);
+    var chars = _canonicalCharsFromDoc(d);
     var idx = chars ? _clampIdx(d.activeCharIdx, chars) : 0;
     var char = (chars && chars[idx]) ? chars[idx] : d;
     if (char.charName) masterPlayers[uid].name = char.charName;
@@ -3444,7 +3514,7 @@ function openMasterFullView(uid) {
   fbDb.collection('characters').doc(uid).get().then(function(doc) {
     if (!doc.exists) { alert('Keine Daten für diesen Spieler.'); return; }
     var d = doc.data();
-    var chars = _normalizeChars(d.chars);
+    var chars = _canonicalCharsFromDoc(d);
     var idx = chars ? _clampIdx(d.activeCharIdx, chars) : 0;
     var char = (chars && chars[idx]) ? chars[idx] : d;
 
@@ -4020,8 +4090,23 @@ function assignItemToPlayers(itemId, itemData) {
         return tx.get(docRef).then(function(doc) {
           if (!doc.exists) return { touched: [] };
           var d = doc.data();
-          var chars = _normalizeChars(d.chars) || [d];
-          var payload = {};
+          // Kanonische chars-Map: Phantom-Felder einbeziehen
+          var _miCharsMap = {};
+          var _rawMiChars = d.chars;
+          if (_rawMiChars && !Array.isArray(_rawMiChars) && typeof _rawMiChars === 'object') {
+            Object.keys(_rawMiChars).forEach(function(k) { if (/^\d+$/.test(k)) _miCharsMap[k] = _rawMiChars[k]; });
+          } else if (Array.isArray(_rawMiChars)) {
+            _rawMiChars.forEach(function(c, i) { _miCharsMap[String(i)] = c; });
+          } else {
+            _miCharsMap['0'] = d; // Ältestes Format: Dokument selbst = Charakter 0
+          }
+          Object.keys(d).forEach(function(topKey) {
+            var m = topKey.match(/^chars\.(\d+)$/);
+            if (m) _miCharsMap[m[1]] = d[topKey];
+          });
+          var chars = _normalizeChars(_miCharsMap) || [];
+          // Arbeitskopie der Map — wird am Ende komplett geschrieben
+          var newCharsMap = Object.assign({}, _miCharsMap);
           var touched = [];
 
           for (var ci = 0; ci < chars.length; ci++) {
@@ -4061,12 +4146,19 @@ function assignItemToPlayers(itemId, itemData) {
             }
 
             if (changed) {
-              payload['chars.' + ci + '.items'] = items; // NUR dieses eine Feld dieses einen Charakters
+              // Geänderten Charakter in der Arbeitskopie der Map aktualisieren
+              newCharsMap[String(ci)] = Object.assign({}, char, { items: items });
               touched.push(ci);
             }
           }
 
           if (touched.length === 0) return { touched: [] };
+          // Komplette chars-Map schreiben — NIEMALS dot-notation String-Keys
+          var payload = { chars: newCharsMap };
+          // Bekannte Phantom-Top-Level-Felder ("chars.N") explizit löschen
+          Object.keys(d).forEach(function(topKey) {
+            if (/^chars\.\d+$/.test(topKey)) payload[topKey] = firebase.firestore.FieldValue.delete();
+          });
           payload['_lastEditedBy'] = fbUser ? fbUser.uid : 'master';
           payload['updatedAt'] = firebase.firestore.FieldValue.serverTimestamp();
           tx.set(docRef, payload, { merge: true });
@@ -4147,26 +4239,35 @@ var _dirtyChars  = {}; // "uid:charIdx" → { snap, baseRev } solange eine lokal
 // ══ WRITE-TRACE — nur Logging ════════════════════════════════════════════════
 function _dbgVerifyFirestore(label, uid) {
   if (!fbDb || !uid) { console.warn('[' + label + '] fbDb/uid fehlt'); return; }
-  fbDb.collection('characters').doc(uid).get().then(function(snap) {
+  // WICHTIG: source:'server' erzwingen — ohne diese Option liefert get() bei
+  // aktivierter Offline-Persistenz den IndexedDB-Cache (fromCache:true), der
+  // den tatsächlichen Firestore-Stand NICHT zwingend widerspiegelt.
+  fbDb.collection('characters').doc(uid).get({ source: 'server' }).then(function(snap) {
     var fromCache = snap.metadata && snap.metadata.fromCache;
     var d = snap.exists ? snap.data() : null;
     var charsRaw = d ? d.chars : null;
     var charsType = Array.isArray(charsRaw) ? 'array'
                   : (charsRaw && typeof charsRaw === 'object' ? 'map' : 'null/missing');
+    // Phantom-Top-Level-Felder ("chars.N") im Dokument erkennen
+    var phantomKeys = d ? Object.keys(d).filter(function(k){ return /^chars\.\d+$/.test(k); }) : [];
     var lines = [
       '[' + label + ']',
       'path: characters/' + uid,
       'exists: ' + snap.exists,
-      'fromCache: ' + (fromCache ? 'YES — IndexedDB, NICHT Server!' : 'NO — direkt vom Server'),
+      'fromCache: ' + (fromCache ? 'YES — Cache!' : 'NO — direkt vom Server'),
       'chars type: ' + charsType,
-      'doc top-level keys: ' + (d ? Object.keys(d).join(', ') : 'n/a')
+      'doc top-level keys: ' + (d ? Object.keys(d).join(', ') : 'n/a'),
+      'PHANTOM-Felder (chars.N auf Top-Level): ' + (phantomKeys.length > 0 ? phantomKeys.join(', ') + ' ← FEHLER BEHOBEN?' : 'keine ✓')
     ];
+    // Kanonischer Stand: verschachteltes Objekt + Phantom-Felder
     var rawE = {};
     if (charsRaw && !Array.isArray(charsRaw) && typeof charsRaw === 'object') {
-      Object.keys(charsRaw).forEach(function(k) { rawE[k] = charsRaw[k]; });
+      Object.keys(charsRaw).forEach(function(k) { if (/^\d+$/.test(k)) rawE[k] = charsRaw[k]; });
     } else if (Array.isArray(charsRaw)) {
       charsRaw.forEach(function(c, i) { rawE[String(i)] = c; });
     }
+    // Phantom-Keys überschreiben (neuerer Stand)
+    if (d) { phantomKeys.forEach(function(pk) { var m = pk.match(/^chars\.(\d+)$/); if (m) rawE[m[1]] = d[pk]; }); }
     Object.keys(rawE).filter(function(k){ return /^\d+$/.test(k); })
       .sort(function(a,b){ return Number(a)-Number(b); })
       .forEach(function(k) {
@@ -4267,6 +4368,30 @@ function _normalizeChars(chars) {
   return null;
 }
 
+// Liest die kanonische chars-Map aus einem Firestore-Dokument-Snapshot.
+// Kombiniert das verschachtelte chars-Objekt MIT etwaigen "chars.N"-Phantom-
+// Top-Level-Feldern, die entstehen wenn zuvor mit dot-notation String-Keys
+// geschrieben wurde. Phantom-Felder überschreiben den verschachtelten Stand
+// (sie sind neuer). Gibt ein normalisiertes Array zurück oder null.
+function _canonicalCharsFromDoc(d) {
+  if (!d) return null;
+  var map = {};
+  var rawChars = d.chars;
+  if (rawChars && !Array.isArray(rawChars) && typeof rawChars === 'object') {
+    Object.keys(rawChars).forEach(function(k) {
+      if (/^\d+$/.test(k)) map[k] = rawChars[k];
+    });
+  } else if (Array.isArray(rawChars)) {
+    rawChars.forEach(function(c, i) { map[String(i)] = c; });
+  }
+  // Phantom-Top-Level-Felder überschreiben den verschachtelten Stand
+  Object.keys(d).forEach(function(topKey) {
+    var m = topKey.match(/^chars\.(\d+)$/);
+    if (m) map[m[1]] = d[topKey];
+  });
+  return _normalizeChars(map);
+}
+
 // Zentrale Validierung von activeCharIdx — niemals außerhalb des vorhandenen
 // characters-Arrays verwenden. An dieser einen Stelle statt verstreutem "|| 0".
 function _clampIdx(idx, arr) {
@@ -4321,12 +4446,35 @@ function _fbWriteCharacter(targetUid, charIdx, rawSnap, onDone, _attempt, _expec
   localSave();
 
   var docRef = fbDb.collection('characters').doc(targetUid);
-  var fieldPath = 'chars.' + charIdx;
 
   fbDb.runTransaction(function(tx) {
     return tx.get(docRef).then(function(doc) {
       var d = doc.exists ? doc.data() : {};
-      var chars = _normalizeChars(d.chars) || [];
+
+      // ── STRUKTURPRÜFUNG: Kanonische chars-Map aus ALLEN Quellen aufbauen ──
+      // Firestore-Dokumente können gleichzeitig ein verschachteltes "chars"-Objekt
+      // UND "chars.N"-Einträge als separate Top-Level-Felder enthalten, wenn
+      // zuvor mit dot-notation String-Keys (payload["chars.1"]) geschrieben wurde.
+      // In diesem Fall liest d.chars nur den alten verschachtelten Stand; die
+      // neueren Werte stecken in den Phantom-Top-Level-Feldern.
+      // Lösung: Beide Quellen zusammenführen — Phantom-Keys gewinnen (neuerer Stand).
+      var canonicalCharsMap = {};
+      var rawChars = d.chars;
+      if (rawChars && !Array.isArray(rawChars) && typeof rawChars === 'object') {
+        Object.keys(rawChars).forEach(function(k) {
+          if (/^\d+$/.test(k)) canonicalCharsMap[k] = rawChars[k];
+        });
+      } else if (Array.isArray(rawChars)) {
+        rawChars.forEach(function(c, i) { canonicalCharsMap[String(i)] = c; });
+      }
+      // Top-Level "chars.N"-Phantom-Felder überschreiben den verschachtelten Stand
+      Object.keys(d).forEach(function(topKey) {
+        var m = topKey.match(/^chars\.(\d+)$/);
+        if (m) canonicalCharsMap[m[1]] = d[topKey];
+      });
+
+      var chars = _normalizeChars(canonicalCharsMap);
+      if (!chars) chars = [];
       var serverChar = chars[charIdx] || null;
       var serverRev = (serverChar && serverChar._rev) || 0;
 
@@ -4342,21 +4490,41 @@ function _fbWriteCharacter(targetUid, charIdx, rawSnap, onDone, _attempt, _expec
       var cleanSnap = Object.assign({}, rawSnap);
       delete cleanSnap._rev;
       var newChar = Object.assign({}, cleanSnap, { _rev: serverRev + 1 });
-      var payload = {};
-      payload[fieldPath] = newChar;
+
+      // ── SCHREIBEN: Immer als sauberes verschachteltes chars-Objekt ──
+      // NIEMALS payload["chars.N"] als String-Key — Firestore SDK v8 (compat)
+      // interpretiert diese als dot-notation FieldPath NUR wenn das Dokument
+      // mit update() geschrieben wird. Bei set(..., {merge:true}) werden
+      // String-Keys MIT Punkt als Literal-Feldnamen behandelt → Phantom-Felder.
+      // Korrekte Lösung: komplette chars-Map als verschachteltes Objekt schreiben.
+      // Alle bisherigen Einträge bleiben erhalten; nur der aktuelle wird atomisch
+      // ersetzt. Gleichzeitig werden bekannte Phantom-Felder explizit gelöscht.
+      var newCharsMap = Object.assign({}, canonicalCharsMap);
+      newCharsMap[String(charIdx)] = newChar;
+
+      var payload = { chars: newCharsMap };
       payload['_lastEditedBy'] = fbUser.uid;
       payload['updatedAt'] = firebase.firestore.FieldValue.serverTimestamp();
-      // EXACT LOG: Was wird GENAU an tx.set() übergeben?
+
+      // Bestehende Phantom-Top-Level-Felder ("chars.N") explizit löschen
+      Object.keys(d).forEach(function(topKey) {
+        if (/^chars\.\d+$/.test(topKey)) {
+          payload[topKey] = firebase.firestore.FieldValue.delete();
+        }
+      });
+
+      // EXACT LOG
       (function(){
-        var writeData = payload[fieldPath];
+        var writeData = newChar;
         var msg = '[EXACT TX SET DATA]'
           + '\n  docPath: characters/' + targetUid
-          + '\n  fieldPath: ' + fieldPath
+          + '\n  fieldPath: chars[' + charIdx + '] (als verschachteltes Objekt, KEIN dot-notation String-Key)'
           + '\n  _rev im Objekt: ' + (Object.keys(writeData).indexOf('_rev') !== -1 ? 'JA (' + writeData._rev + ')' : 'NEIN — FEHLT!')
           + '\n  typeof _rev: ' + typeof writeData._rev
           + '\n  HP: ' + writeData.hp
           + '\n  TempHP: ' + (writeData.temp !== undefined ? writeData.temp : writeData.tempHp)
           + '\n  name: ' + writeData.charName
+          + '\n  charsMap-Keys: ' + Object.keys(newCharsMap).join(', ')
           + '\n  JSON (150 Zeichen): ' + JSON.stringify(writeData).substring(0, 150);
         console.log(msg); dbgLog('info', msg);
       })();
@@ -4523,18 +4691,35 @@ function _fbDeleteCharacter(targetUid, deleteIdx, onDone) {
   fbDb.runTransaction(function(tx) {
     return tx.get(docRef).then(function(doc) {
       var d = doc.exists ? doc.data() : {};
-      var chars = _normalizeChars(d.chars) || [];
+      // Kanonische chars-Map: Phantom-Felder einbeziehen (gleiche Logik wie _fbWriteCharacter)
+      var _delCharsMap = {};
+      var _rawChars = d.chars;
+      if (_rawChars && !Array.isArray(_rawChars) && typeof _rawChars === 'object') {
+        Object.keys(_rawChars).forEach(function(k) { if (/^\d+$/.test(k)) _delCharsMap[k] = _rawChars[k]; });
+      } else if (Array.isArray(_rawChars)) {
+        _rawChars.forEach(function(c, i) { _delCharsMap[String(i)] = c; });
+      }
+      Object.keys(d).forEach(function(topKey) {
+        var m = topKey.match(/^chars\.(\d+)$/);
+        if (m) _delCharsMap[m[1]] = d[topKey];
+      });
+      var chars = _normalizeChars(_delCharsMap) || [];
       if (deleteIdx < 0 || deleteIdx >= chars.length) {
         return { alreadyGone: true, newLength: chars.length };
       }
       var remaining = chars.slice();
       remaining.splice(deleteIdx, 1);
-      var payload = {};
-      for (var i = deleteIdx; i < remaining.length; i++) {
-        payload['chars.' + i] = remaining[i];
-      }
-      // Überzähligen letzten Eintrag wirklich entfernen, nicht nur überschreiben
-      payload['chars.' + (chars.length - 1)] = firebase.firestore.FieldValue.delete();
+      // Neue saubere chars-Map: alle verbleibenden Einträge mit korrekten Indizes.
+      // NIEMALS chars.N als String-Keys — das erzeugt Phantom-Top-Level-Felder.
+      var newCharsMap = {};
+      remaining.forEach(function(c, i) { newCharsMap[String(i)] = c; });
+      var payload = { chars: newCharsMap };
+      // Bekannte Phantom-Top-Level-Felder ("chars.N") explizit löschen
+      Object.keys(d).forEach(function(topKey) {
+        if (/^chars\.\d+$/.test(topKey)) {
+          payload[topKey] = firebase.firestore.FieldValue.delete();
+        }
+      });
       payload['_lastEditedBy'] = fbUser.uid;
       payload['updatedAt'] = firebase.firestore.FieldValue.serverTimestamp();
       tx.set(docRef, payload, { merge: true });
