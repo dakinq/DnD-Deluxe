@@ -534,6 +534,7 @@ body.master-mode { padding-top: 58px; }
   <div id="dbgLogHeader">
     <h3>Speicher-Log</h3>
     <div>
+      <button onclick="dbgLogCopyAll()" title="Gesamten Log in Zwischenablage kopieren">📋 Kopieren</button>
       <button onclick="dbgLogClear()">Leeren</button>
       <button onclick="dbgLogClose()">Schließen ✕</button>
     </div>
@@ -2725,6 +2726,25 @@ function dbgLogClear() {
   try { _lsSet('dnd_dbglog', '[]'); } catch(e){}
   dbgLogRender();
 }
+function dbgLogCopyAll() {
+  var lines = _dbgLog.slice().reverse().map(function(e) {
+    var time = e.t.toLocaleTimeString('de-DE');
+    return '[' + time + '] [' + e.type.toUpperCase() + '] ' + e.msg + (e.extra ? (' | ' + e.extra) : '');
+  });
+  var text = lines.join('\n');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function() {
+      var btn = document.querySelector('#dbgLogHeader button[onclick="dbgLogCopyAll()"]');
+      if (btn) { var orig = btn.textContent; btn.textContent = '✓ Kopiert!'; setTimeout(function(){ btn.textContent = orig; }, 1500); }
+    });
+  } else {
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta);
+    alert('Log in Zwischenablage kopiert (' + lines.length + ' Einträge)');
+  }
+}
 function dbgLogRender() {
   var list = document.getElementById('dbgLogList');
   if (!list) return;
@@ -2966,6 +2986,7 @@ function initPlayerMode() {
       if (!_playerInitialLoadDone) {
         _playerInitialLoadDone = true;
         try {
+          // DEBUG: Roher Firestore-Stand VOR jeder Normalisierung/Migration
           _dbgVerifyFirestore('VERIFY FIRESTORE INITIAL', fbUser.uid);
           var isLegacyArray = Array.isArray(d.chars);
           var normChars = _normalizeChars(d.chars);
@@ -3019,7 +3040,7 @@ function initPlayerMode() {
                   }
                   var charsMap = {};
                   freshD.chars.forEach(function(c, i) { charsMap[String(i)] = c; });
-                  _dbgFsWrite('migration/Array→Map', fbUser.uid, 'all', 'n/a', 'n/a');
+                  _dbgFsWrite('migration/Array→Map/initial', fbUser.uid, 'all', 'n/a', 'n/a');
                   tx.set(docRef, { chars: charsMap }, { merge: true });
                   return { alreadyMigrated: false };
                 });
@@ -3140,6 +3161,15 @@ function initPlayerMode() {
           // NUR diesen einen Charakter im lokalen Array ersetzen — alle anderen,
           // auch noch nicht synchronisierte, bleiben unangetastet.
           while (characters.length <= idx) characters.push({});
+          // DEBUG: onSnapshot überschreibt characters[idx]
+          (function(){
+            var msg = '[SNAPSHOT WRITE characters[' + idx + ']]'
+              + ' incomingRev=' + incomingChar._rev
+              + ' incomingHP=' + incomingChar.hp
+              + ' localRevVorher=' + (characters[idx] && characters[idx]._rev)
+              + ' localHPVorher=' + (characters[idx] && characters[idx].hp);
+            console.log(msg); dbgLog('info', msg);
+          })();
           characters[idx] = incomingChar;
           _fbLastSaved[charKey] = JSON.parse(JSON.stringify(incomingChar));
           anyApplied = true;
@@ -4114,7 +4144,7 @@ var _fbLastSaved = {}; // "uid:charIdx" → zuletzt bestätigter Firestore-Stand
 var _dirtyChars  = {}; // "uid:charIdx" → { snap, baseRev } solange eine lokale Änderung noch nicht bestätigt wurde
 
 
-// ══ DEBUG LOGGING — nur Ausgabe, null funktionaler Code ══════════════════
+// ══ WRITE-TRACE — nur Logging ════════════════════════════════════════════════
 function _dbgVerifyFirestore(label, uid) {
   if (!fbDb || !uid) { console.warn('[' + label + '] fbDb/uid fehlt'); return; }
   fbDb.collection('characters').doc(uid).get().then(function(snap) {
@@ -4127,9 +4157,9 @@ function _dbgVerifyFirestore(label, uid) {
       '[' + label + ']',
       'path: characters/' + uid,
       'exists: ' + snap.exists,
-      'fromCache: ' + (fromCache ? 'YES (IndexedDB — NICHT Server!)' : 'NO (direkt vom Server)'),
+      'fromCache: ' + (fromCache ? 'YES — IndexedDB, NICHT Server!' : 'NO — direkt vom Server'),
       'chars type: ' + charsType,
-      'doc keys: ' + (d ? Object.keys(d).join(',') : 'n/a')
+      'doc top-level keys: ' + (d ? Object.keys(d).join(', ') : 'n/a')
     ];
     var rawE = {};
     if (charsRaw && !Array.isArray(charsRaw) && typeof charsRaw === 'object') {
@@ -4143,7 +4173,7 @@ function _dbgVerifyFirestore(label, uid) {
         var c = rawE[k] || {};
         var ck = Object.keys(c);
         lines.push('char' + k + ':'
-          + ' _rev-Feld vorhanden=' + (ck.indexOf('_rev') !== -1 ? 'JA' : 'NEIN')
+          + '  _rev-Feld im Dokument=' + (ck.indexOf('_rev') !== -1 ? 'JA' : 'NEIN')
           + '  rev=' + (c._rev !== undefined ? c._rev : 'UNDEFINED')
           + '  HP=' + (c.hp !== undefined ? c.hp : '?')
           + '  TempHP=' + (c.temp !== undefined ? c.temp : (c.tempHp !== undefined ? c.tempHp : '?'))
@@ -4152,20 +4182,30 @@ function _dbgVerifyFirestore(label, uid) {
       });
     var msg = lines.join('\n');
     console.log(msg);
-    dbgLog('info', lines.join(' | '));
+    dbgLog('info', msg);
   }).catch(function(e) {
     console.error('[' + label + '] getDoc fehlgeschlagen:', e);
     dbgLog('err', '[' + label + '] getDoc fehlgeschlagen: ' + String(e));
   });
 }
-function _dbgFsWrite(source, uid, charIdx, oldRev, newRev) {
-  var msg = '[FIRESTORE WRITE] source=' + source
-    + '  path=characters/' + uid
-    + '  charIdx=' + (charIdx !== undefined ? charIdx : 'n/a')
-    + '  oldRev=' + oldRev + '  newRev=' + newRev;
+function _dbgFsWrite(source, uid, charIdx, oldRev, newRev, extra) {
+  var msg = '[FIRESTORE WRITE START]'
+    + '\n  source: ' + source
+    + '\n  path: characters/' + uid
+    + '\n  charIdx: ' + (charIdx !== undefined ? charIdx : 'n/a')
+    + '\n  oldRev: ' + oldRev
+    + '\n  newRev: ' + newRev
+    + (extra ? ('\n  extra: ' + extra) : '');
   console.log(msg); dbgLog('info', msg);
 }
-// ══════════════════════════════════════════════════════════════════════════
+function _dbgFsWriteOk(source, uid, charIdx, newRev) {
+  var msg = '[FIRESTORE WRITE SUCCESS] source=' + source
+    + '  path=characters/' + uid
+    + '  charIdx=' + (charIdx !== undefined ? charIdx : 'n/a')
+    + '  newRev=' + newRev;
+  console.log(msg); dbgLog('ok', msg);
+}
+// ══ END WRITE-TRACE ══════════════════════════════════════════════════════════
 function _fbKey(uid, idx) {
   return uid + ':' + idx;
 }
@@ -4298,37 +4338,30 @@ function _fbWriteCharacter(targetUid, charIdx, rawSnap, onDone, _attempt, _expec
         throw conflictErr;
       }
 
-      // Sicherstellen: rawSnap enthält kein altes _rev das Object.assign
-      // überschreiben könnte — und newChar._rev ist definitiv eine Zahl (kein undefined).
+      // Sicherstellen: rawSnap enthält kein altes _rev — neu sauber setzen
       var cleanSnap = Object.assign({}, rawSnap);
-      delete cleanSnap._rev; // explizit entfernen, damit Object.assign sauber ist
-      var newRev = serverRev + 1;
-      var newChar = Object.assign({}, cleanSnap, { _rev: newRev });
-      // Paranoia-Check: _rev muss eine Zahl sein
-      if (typeof newChar._rev !== 'number') {
-        dbgLog('err', '[FIX] newChar._rev ist kein Number: ' + typeof newChar._rev + ' — erzwinge 1');
-        newChar._rev = 1;
-      }
+      delete cleanSnap._rev;
+      var newChar = Object.assign({}, cleanSnap, { _rev: serverRev + 1 });
       var payload = {};
       payload[fieldPath] = newChar;
       payload['_lastEditedBy'] = fbUser.uid;
       payload['updatedAt'] = firebase.firestore.FieldValue.serverTimestamp();
-      // DEBUG: Exakten Payload VOR tx.set loggen
-      (function() {
-        var c = newChar;
-        var msg = '[TX PAYLOAD]' +
-          '\n  charIdx=' + charIdx +
-          '\n  payload._rev=' + c._rev +
-          '\n  payload.HP=' + c.hp +
-          '\n  payload.TempHP=' + (c.temp !== undefined ? c.temp : c.tempHp) +
-          '\n  payload.name=' + c.charName +
-          '\n  fieldPath=' + fieldPath +
-          '\n  newChar keys mit _rev=' + JSON.stringify(Object.keys(c).indexOf('_rev') !== -1) +
-          '\n  newChar JSON (100 Zeichen)=' + JSON.stringify(c).substring(0, 100);
-        console.log(msg);
-        dbgLog('info', msg.replace(/\n  /g, ' | '));
+      // EXACT LOG: Was wird GENAU an tx.set() übergeben?
+      (function(){
+        var writeData = payload[fieldPath];
+        var msg = '[EXACT TX SET DATA]'
+          + '\n  docPath: characters/' + targetUid
+          + '\n  fieldPath: ' + fieldPath
+          + '\n  _rev im Objekt: ' + (Object.keys(writeData).indexOf('_rev') !== -1 ? 'JA (' + writeData._rev + ')' : 'NEIN — FEHLT!')
+          + '\n  typeof _rev: ' + typeof writeData._rev
+          + '\n  HP: ' + writeData.hp
+          + '\n  TempHP: ' + (writeData.temp !== undefined ? writeData.temp : writeData.tempHp)
+          + '\n  name: ' + writeData.charName
+          + '\n  JSON (150 Zeichen): ' + JSON.stringify(writeData).substring(0, 150);
+        console.log(msg); dbgLog('info', msg);
       })();
-      _dbgFsWrite('_fbWriteCharacter/tx.set', targetUid, charIdx, serverRev, newChar._rev);
+      _dbgFsWrite('_fbWriteCharacter/tx.set', targetUid, charIdx, serverRev, serverRev+1,
+        'hp=' + newChar.hp + ' _rev=' + newChar._rev);
       tx.set(docRef, payload, { merge: true });
       return newChar;
     });
@@ -4359,6 +4392,8 @@ function _fbWriteCharacter(targetUid, charIdx, rawSnap, onDone, _attempt, _expec
     // Der _rev-Wert von newChar ist bereits in characters[charIdx] gespeichert
     // und wird beim nächsten gather()/fbSave() automatisch verwendet.
     dbgLog('ok', 'Speichern erfolgreich (Charakter ' + charIdx + ', doc: characters/' + targetUid + ', rev ' + newChar._rev + ')');
+    _dbgFsWriteOk('_fbWriteCharacter', targetUid, charIdx, newChar._rev);
+    // VERIFY: Direkt nach ACK frischen getDoc() machen — zeigt was Firestore TATSÄCHLICH hat
     _dbgVerifyFirestore('VERIFY FIRESTORE AFTER SAVE', targetUid);
     if (onDone) onDone(true);
   }).catch(function(e) {
@@ -4396,6 +4431,7 @@ function _fbWriteCharacter(targetUid, charIdx, rawSnap, onDone, _attempt, _expec
 // bei einem laufenden Live-Update (siehe initPlayerMode()).
 function _fbPersistActiveIdx(targetUid, idx) {
   if (!fbUser || !fbDb) return;
+  _dbgFsWrite('_fbPersistActiveIdx/.set', targetUid, 'nur activeCharIdx-Feld', 'n/a', idx, 'KEIN chars-Inhalt');
   fbDb.collection('characters').doc(targetUid).set({
     activeCharIdx: idx,
     _lastEditedBy: fbUser.uid,
@@ -4440,6 +4476,19 @@ function _flushDirty(scopeUid) {
     } else {
       dbgLog('warn', 'Sende ausstehende Offline-Änderung erneut (Charakter ' + idx + ')...');
     }
+    // DEBUG: _flushDirty schickt diesen Snapshot — kritisch weil er HP-Stand
+    // von VOR dem letzten Save haben könnte und alles überschreiben würde
+    (function(){
+      var msg = '[FLUSH DIRTY WRITE]'
+        + '\n  charIdx: ' + idx
+        + '\n  entry.baseRev: ' + entry.baseRev
+        + '\n  snapToSend HP: ' + snapToSend.hp
+        + '\n  snapToSend._rev: ' + (snapToSend._rev !== undefined ? snapToSend._rev : 'UNDEFINED')
+        + '\n  snapToSend === entry.snap: ' + (snapToSend === entry.snap)
+        + '\n  characters[idx] HP: ' + (characters[idx] ? characters[idx].hp : 'n/a')
+        + '\n  characters[idx]._rev: ' + (characters[idx] ? characters[idx]._rev : 'n/a');
+      console.warn(msg); dbgLog('warn', msg);
+    })();
     _fbWriteCharacter(uid, idx, snapToSend, null, 0, entry.baseRev);
   });
 }
