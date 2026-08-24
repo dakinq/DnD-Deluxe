@@ -2560,6 +2560,7 @@ function newChar(){
 // Muss vor jedem Speichervorgang aufgerufen werden.
 function gather(){
   function v(id){ var e=document.getElementById(id); if(!e) return ''; return e.getAttribute('data-base')!==null ? e.getAttribute('data-base') : e.value; }
+  var _dTiles=Array.from(document.querySelectorAll('.d-tile'));
   return {
     charName:v('charName'),charSub:v('charSub'),
     statRK:v('statRK'),statINI:v('statINI'),statBEW:v('statBEW'),
@@ -2569,13 +2570,9 @@ function gather(){
     aKONm:v('aKONm'),aKONv:v('aKONv'),aINTm:v('aINTm'),aINTv:v('aINTv'),
     aWEIm:v('aWEIm'),aWEIv:v('aWEIv'),aCHAm:v('aCHAm'),aCHAv:v('aCHAv'),
     saves:Array.from(document.querySelectorAll('#savesGrid .tile')).map(function(t){ return{active:t.classList.contains('active'),val:t.querySelector('.editable').value}; }),
-    deaths:(function(){
-      var s=Array.from(document.querySelectorAll('.d-tile')).slice(0,3).map(function(b){return b.classList.contains('s-active');});
-      var f=Array.from(document.querySelectorAll('.d-tile')).slice(3,6).map(function(b){return b.classList.contains('f-active');});
-      return {s:s,f:f};
-    })(),
-    deathSaveSucc:Array.from(document.querySelectorAll('.d-tile')).slice(0,3).filter(function(b){return b.classList.contains('s-active');}).length,
-    deathSaveFail:Array.from(document.querySelectorAll('.d-tile')).slice(3,6).filter(function(b){return b.classList.contains('f-active');}).length,
+    deaths:{s:_dTiles.slice(0,3).map(function(b){return b.classList.contains('s-active');}),f:_dTiles.slice(3,6).map(function(b){return b.classList.contains('f-active');})},
+    deathSaveSucc:_dTiles.slice(0,3).filter(function(b){return b.classList.contains('s-active');}).length,
+    deathSaveFail:_dTiles.slice(3,6).filter(function(b){return b.classList.contains('f-active');}).length,
     exhaustion:exhaustion,hdUsed:hdUsed.slice(),hdType:v('hdType'),exhTexts:exhTexts.slice(),
     skills:skills.map(function(s){return{name:s.name,attr:s.attr,val:s.val,p:s.p};}),
     attacks:attacks.map(function(a){return{name:a.name,bonus:a.bonus,dmg:a.dmg,type:a.type,range:a.range,notes:a.notes||'',magic:a.magic||0,magicLabel:a.magicLabel||'',attr:a.attr||'',bonuses:a.bonuses||{},equipped:a.equipped||false};}),
@@ -2704,11 +2701,17 @@ function _lsGet(key) {
 // Protokolliert alle Firestore-Speichervorgänge sichtbar in der App,
 // damit sich Speicherprobleme bei Usern auch ohne Browser-Konsole nachvollziehen lassen.
 // ════════════════════════════════════════════════
+var DEBUG = false; // Auf true setzen für vollständige Debug-Logs
+
 var _dbgLog = [];
 var _dbgLogMax = 300;
 var _dbgLogErrCount = 0;
 
 function dbgLog(type, msg, extra) {
+  var isVerbose = (type === 'info' || type === 'ok');
+  // Bei DEBUG=false: INFO/OK-Logs werden weder gespeichert noch ins Panel geschrieben
+  if (!DEBUG && isVerbose) return;
+
   var entry = {
     t: new Date(),
     type: type, // 'info' | 'ok' | 'warn' | 'err'
@@ -3373,6 +3376,7 @@ function initPlayerMode() {
     localLoad();
   });
   fbListeners.push(unsub);
+  applyMasterBodyClass();
 
 }
 
@@ -3407,6 +3411,7 @@ function initMasterMode() {
   });
   // Master-Gegenstände laden
   loadMasterItems();
+  applyMasterBodyClass();
 }
 
 // ------------------------------------------------------------
@@ -3920,7 +3925,6 @@ function updateMasterItemBtns() {
 // ------------------------------------------------------------
 // Master-Item-Boni
 // ------------------------------------------------------------
-var _miBonusIds    = ['statRK','statINI','statBEW','aSTAm','aGESm','aKONm','aINTm','aWEIm','aCHAm','profBonus','passPerc'];
 var _miBonusLabels = {'statRK':'RK','statINI':'INI','statBEW':'BEW','aSTAm':'STÄ','aGESm':'GES','aKONm':'KON','aINTm':'INT','aWEIm':'WEI','aCHAm':'CHA','profBonus':'ÜB','passPerc':'PW'};
 var _miBonusNames  = {'statRK':'Rüstungsklasse','statINI':'Initiative','statBEW':'Bewegung','aSTAm':'Stärke','aGESm':'Geschick','aKONm':'Konstitution','aINTm':'Intelligenz','aWEIm':'Weisheit','aCHAm':'Charisma','profBonus':'Übungsbonus','passPerc':'Pass. Wahrn.'};
 
@@ -3930,7 +3934,7 @@ function buildMiBonusPanel() {
   panel.innerHTML = '';
 
   // Active bonus rows
-  var active = _miBonusIds.filter(function(sid){ return parseInt(miItemBonuses[sid])||0; });
+  var active = _itemBonusIds.filter(function(sid){ return parseInt(miItemBonuses[sid])||0; });
   active.forEach(function(sid) {
     var val = parseInt(miItemBonuses[sid]);
     var row = document.createElement('div');
@@ -3951,7 +3955,7 @@ function buildMiBonusPanel() {
   });
 
   // Add bonus row
-  var unused = _miBonusIds.filter(function(sid){ return !(parseInt(miItemBonuses[sid])||0); });
+  var unused = _itemBonusIds.filter(function(sid){ return !(parseInt(miItemBonuses[sid])||0); });
   var addRow = document.createElement('div');
   addRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:6px 4px;';
   addRow.innerHTML = '<span style="font-size:13px;color:#a08c60;letter-spacing:1px;">Boni</span>';
@@ -3970,7 +3974,7 @@ function showMiBonusWheel() {
   if (!panel) return;
   var existing = document.getElementById('miBonusWheel');
   if (existing) { existing.remove(); return; }
-  var unused = _miBonusIds.filter(function(sid){ return !(parseInt(miItemBonuses[sid])||0); });
+  var unused = _itemBonusIds.filter(function(sid){ return !(parseInt(miItemBonuses[sid])||0); });
   if (unused.length === 0) return;
 
   var wheel = document.createElement('div');
@@ -4638,8 +4642,6 @@ function _fbWriteCharacter(targetUid, charIdx, rawSnap, onDone, _attempt, _expec
     // und wird beim nächsten gather()/fbSave() automatisch verwendet.
     dbgLog('ok', 'Speichern erfolgreich (Charakter ' + charIdx + ', doc: characters/' + targetUid + ', rev ' + newChar._rev + ')');
     _dbgFsWriteOk('_fbWriteCharacter', targetUid, charIdx, newChar._rev);
-    // VERIFY: Direkt nach ACK frischen getDoc() machen — zeigt was Firestore TATSÄCHLICH hat
-    _dbgVerifyFirestore('VERIFY FIRESTORE AFTER SAVE', targetUid);
     if (onDone) onDone(true);
   }).catch(function(e) {
     if (e && e.code === 'rev-conflict') {
@@ -5102,11 +5104,6 @@ function applyMasterBodyClass() {
     if (lb) lb.style.display = '';
   }
 }
-// wird nach Auth aufgerufen — überschreiben von initPlayerMode/initMasterMode
-var _origInitPlayer = initPlayerMode;
-initPlayerMode = function() { _origInitPlayer(); applyMasterBodyClass(); };
-var _origInitMaster = initMasterMode;
-initMasterMode = function() { _origInitMaster(); applyMasterBodyClass(); };
 </script>
 </div><!-- /appRoot -->
 </body>
