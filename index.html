@@ -382,6 +382,36 @@ body.master-mode { padding-top: 58px; }
 .dbg-entry.ok{border-left-color:#5dba7d;}
 .dbg-time{color:var(--text-dim,#8a8070);margin-right:6px;}
 .dbg-empty{color:var(--text-dim,#8a8070);text-align:center;margin-top:30px;font-size:12px;}
+
+/* ── Spieler-Kacheln: responsives Layout ─────────────────────────────────── */
+#masterCards {
+  display: flex;
+  flex-wrap: nowrap;          /* kein Umbruch → horizontales Scrollen bei Überlauf */
+  flex-direction: column;     /* Mobile Hochformat: eine Kachel pro Zeile */
+  gap: 12px;
+}
+/* Jede Kachel soll ihre natürliche Breite behalten und nicht gestaucht werden */
+#masterCards > div {
+  flex-shrink: 0;
+}
+/* Ab ~500 px (Querformat Smartphone / kleines Desktop-Fenster):
+   Kacheln nebeneinander; horizontales Scrollen wenn zu viele */
+@media (min-width: 500px) {
+  #masterDashboard {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  #masterCards {
+    flex-direction: row;      /* Kacheln nebeneinander */
+    flex-wrap: nowrap;        /* kein Umbruch → horizontales Scrollen statt Stauchen */
+    align-items: flex-start;
+  }
+  #masterCards > div {
+    width: 320px;             /* feste Kachelbreite — entspricht etwa der bisherigen Kartenbreite */
+    min-width: 260px;
+  }
+}
+/* ─────────────────────────────────────────────────────────────────────────── */
 </style>
 
 </head>
@@ -455,7 +485,7 @@ body.master-mode { padding-top: 58px; }
     </div>
     <!-- Dashboard (scrollbar) -->
     <div id="masterDashboard" style="flex:1; overflow-y:auto; padding:14px 16px; -webkit-overflow-scrolling:touch;">
-      <div id="masterCards" style="display:flex; flex-direction:column; gap:12px;">
+      <div id="masterCards">
         <div style="color:var(--text-dim); font-size:13px; text-align:center; padding:30px 0; letter-spacing:1px;">
           Spieler antippen um Karte anzuzeigen
         </div>
