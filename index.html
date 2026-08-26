@@ -383,7 +383,65 @@ body.master-mode { padding-top: 58px; }
 .dbg-time{color:var(--text-dim,#8a8070);margin-right:6px;}
 .dbg-empty{color:var(--text-dim,#8a8070);text-align:center;margin-top:30px;font-size:12px;}
 
-/* ── Spieler-Kacheln: responsives Layout ─────────────────────────────────── */
+/* ── Quick-Zuweisung: Auswahl-Modus in Item/Waffen-Liste ──────────────────── */
+.master-item-card.qs-selected {
+  background: rgba(201,168,76,0.13);
+  border-left: 3px solid rgba(201,168,76,0.7);
+}
+.qs-check {
+  flex-shrink: 0;
+  width: 26px; height: 26px;
+  border-radius: 6px;
+  border: 2px solid rgba(201,168,76,0.3);
+  background: transparent;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+  transition: all 0.15s;
+  color: transparent;
+}
+.qs-check.checked {
+  background: rgba(201,168,76,0.2);
+  border-color: rgba(201,168,76,0.8);
+  color: #e8cc7a;
+}
+/* Pillen-Leiste im Zuweisungs-Modus */
+#masterPills.qs-assign-mode {
+  background: rgba(201,168,76,0.06);
+  border-radius: 10px;
+  padding: 6px 8px 12px;
+  border: 1px solid rgba(201,168,76,0.2);
+}
+.qs-pill-hint {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--gold);
+  letter-spacing: 1px;
+  align-self: center;
+  white-space: nowrap;
+  opacity: 0.8;
+}
+.qs-cancel-btn {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border-radius: 14px;
+  font-size: 12px;
+  font-family: Georgia, serif;
+  letter-spacing: 1px;
+  cursor: pointer;
+  white-space: nowrap;
+  background: rgba(224,80,80,0.12);
+  border: 1px solid rgba(224,80,80,0.35);
+  color: #e07070;
+  align-self: center;
+}
+/* Pillen im Zuweisungs-Modus — klickbar und hervorgehoben */
+#masterPills.qs-assign-mode button.master-pill-player {
+  border-color: rgba(201,168,76,0.55) !important;
+  color: #e8cc7a !important;
+  background: rgba(201,168,76,0.08) !important;
+}
+/* ─────────────────────────────────────────────────────────────────────────── */
 /* .card innerhalb der Kachel-Wrapper soll den gesamten Wrapper ausfüllen */
 #masterCards > div > .card {
   margin-bottom: 0;
@@ -3566,6 +3624,8 @@ function buildMasterPills() {
     var p = masterPlayers[uid];
     var selected = masterSelectedUids.indexOf(uid) !== -1;
     html += '<button ' +
+      'class="master-pill-player" ' +
+      'data-uid="' + uid + '" ' +
       'onclick="toggleMasterCard(\'' + uid + '\')" ' +
       'oncontextmenu="event.preventDefault();openMasterFullView(\'' + uid + '\')" ' +
       'style="flex-shrink:0;padding:8px 18px;border-radius:20px;font-size:13px;' +
@@ -3577,6 +3637,9 @@ function buildMasterPills() {
   });
   if (!html) html = '<div style="color:var(--text-dim);font-size:12px;padding:4px;">Keine Spieler gefunden</div>';
   el.innerHTML = html;
+
+  // Falls Quick-Zuweisung aktiv: Modus sofort wiederherstellen
+  if (qsHasSelection()) qsUpdatePills();
 
   // Langen Tap für Vollansicht
   el.querySelectorAll('button').forEach(function(btn, i) {
@@ -3963,7 +4026,11 @@ function buildMasterItemList() {
       }
       assignInfo = '<span style="font-size:11px;color:var(--gold);background:rgba(201,168,76,0.12);border-radius:4px;padding:1px 6px;margin-left:4px;">→ ' + escHtml(names.join(', ')) + '</span>';
     }
-    html += '<div class="' + cardClass + '">' +
+    var isQsChecked = it._id && !!qsSelectedItems[it._id];
+    html += '<div class="' + cardClass + (isQsChecked ? ' qs-selected' : '') + '">' +
+      (it._id
+        ? '<button class="qs-check' + (isQsChecked ? ' checked' : '') + '" onclick="qsToggleItem(\'' + it._id + '\')" title="Auswählen für Schnellzuweisung">' + (isQsChecked ? '✓' : '') + '</button>'
+        : '') +
       (isMagic ? '<span style="font-size:14px;">✨</span>' : '') +
       '<button onclick="openMasterItemModal(' + i + ')" style="flex:1;background:none;border:none;text-align:left;padding:0;color:' + nameColor + ';font-size:15px;font-family:Georgia,serif;display:flex;flex-direction:column;align-items:flex-start;gap:2px;">' +
         '<div style="display:flex;align-items:center;gap:6px;">' +
@@ -4483,7 +4550,11 @@ function buildMasterWeaponList() {
       }
       assignInfo = '<span style="font-size:11px;color:var(--gold);background:rgba(201,168,76,0.12);border-radius:4px;padding:1px 6px;margin-left:4px;">→ ' + escHtml(names.join(', ')) + '</span>';
     }
-    html += '<div class="master-item-card' + (m > 0 ? ' magic' : '') + '">' +
+    var isQsWChecked = w._id && !!qsSelectedWeapons[w._id];
+    html += '<div class="master-item-card' + (m > 0 ? ' magic' : '') + (isQsWChecked ? ' qs-selected' : '') + '">' +
+      (w._id
+        ? '<button class="qs-check' + (isQsWChecked ? ' checked' : '') + '" onclick="qsToggleWeapon(\'' + w._id + '\')" title="Auswählen für Schnellzuweisung">' + (isQsWChecked ? '✓' : '') + '</button>'
+        : '') +
       (m > 0 ? '<span style="font-size:14px;">✨</span>' : '<span style="font-size:14px;">🗡️</span>') +
       '<button onclick="openMasterWeaponModal(' + i + ')" style="flex:1;background:none;border:none;text-align:left;padding:0;font-family:Georgia,serif;display:flex;flex-direction:column;align-items:flex-start;gap:2px;">' +
         '<div style="display:flex;align-items:center;gap:6px;">' +
@@ -4500,6 +4571,154 @@ function buildMasterWeaponList() {
     '</div>';
   }
   el.innerHTML = html;
+}
+
+// ============================================================
+// QUICK-ZUWEISUNG — Items/Waffen direkt aus der Liste zuweisen
+// ============================================================
+var qsSelectedItems   = {}; // { _id: masterItems[i] }
+var qsSelectedWeapons = {}; // { _id: masterWeapons[i] }
+
+// Auswahl eines Items toggeln
+function qsToggleItem(id) {
+  if (qsSelectedItems[id]) {
+    delete qsSelectedItems[id];
+  } else {
+    var it = masterItems.filter(function(x){ return x._id === id; })[0];
+    if (it) qsSelectedItems[id] = it;
+  }
+  buildMasterItemList();
+  qsUpdatePills();
+}
+
+// Auswahl einer Waffe toggeln
+function qsToggleWeapon(id) {
+  if (qsSelectedWeapons[id]) {
+    delete qsSelectedWeapons[id];
+  } else {
+    var w = masterWeapons.filter(function(x){ return x._id === id; })[0];
+    if (w) qsSelectedWeapons[id] = w;
+  }
+  buildMasterWeaponList();
+  qsUpdatePills();
+}
+
+// Anzahl ausgewählter Items/Waffen
+function qsHasSelection() {
+  return Object.keys(qsSelectedItems).length + Object.keys(qsSelectedWeapons).length > 0;
+}
+
+// Auswahl komplett aufheben
+function qsClearSelection() {
+  qsSelectedItems   = {};
+  qsSelectedWeapons = {};
+  buildMasterItemList();
+  buildMasterWeaponList();
+  qsUpdatePills();
+}
+
+// Pillen-Leiste in den Zuweisungs-Modus schalten (oder zurück)
+function qsUpdatePills() {
+  var el = document.getElementById('masterPills');
+  if (!el) return;
+  var active = qsHasSelection();
+
+  if (active) {
+    el.classList.add('qs-assign-mode');
+  } else {
+    el.classList.remove('qs-assign-mode');
+  }
+
+  // Hint + Abbrechen-Button ein-/ausblenden
+  var hint = document.getElementById('qsPillHint');
+  var cancel = document.getElementById('qsCancelBtn');
+  if (active) {
+    var totalCount = Object.keys(qsSelectedItems).length + Object.keys(qsSelectedWeapons).length;
+    if (!hint) {
+      var h = document.createElement('span');
+      h.id = 'qsPillHint';
+      h.className = 'qs-pill-hint';
+      h.textContent = '→ Zuweisen an:';
+      el.insertBefore(h, el.firstChild);
+    } else {
+      hint.textContent = totalCount + (totalCount === 1 ? ' Item' : ' Items') + ' → zuweisen an:';
+    }
+    if (!cancel) {
+      var cb = document.createElement('button');
+      cb.id = 'qsCancelBtn';
+      cb.className = 'qs-cancel-btn';
+      cb.textContent = '✕';
+      cb.title = 'Auswahl aufheben';
+      cb.onclick = qsClearSelection;
+      el.appendChild(cb);
+    }
+  } else {
+    if (hint)  hint.remove();
+    if (cancel) cancel.remove();
+  }
+
+  // Spieler-Pillen: onclick je nach Modus umschalten
+  var btns = el.querySelectorAll('button.master-pill-player');
+  btns.forEach(function(btn) {
+    var uid = btn.getAttribute('data-uid');
+    if (active) {
+      btn.onclick = function() { qsAssignToPlayer(uid); };
+    } else {
+      btn.onclick = function() { toggleMasterCard(uid); };
+    }
+  });
+}
+
+// Sofortige Zuweisung aller ausgewählten Items/Waffen an einen Spieler
+function qsAssignToPlayer(uid) {
+  if (!uid || !qsHasSelection()) return;
+  var itemIds    = Object.keys(qsSelectedItems);
+  var weaponIds  = Object.keys(qsSelectedWeapons);
+  var total      = itemIds.length + weaponIds.length;
+  var p          = masterPlayers[uid];
+  var playerName = p ? (p.name || uid) : uid;
+
+  // Items zuweisen
+  itemIds.forEach(function(id) {
+    var it = qsSelectedItems[id];
+    var assignedTo = (it.assignedTo || []).slice();
+    if (assignedTo.indexOf(uid) < 0) assignedTo.push(uid);
+    var updated = Object.assign({}, it, { assignedTo: assignedTo, updatedAt: Date.now() });
+    if (fbDb && it._id) {
+      fbDb.collection('masterItems').doc(it._id).update({ assignedTo: assignedTo, updatedAt: Date.now() }).then(function() {
+        assignItemToPlayers(it._id, updated);
+      }).catch(function(e) {
+        dbgLog('err', 'QS Item-Zuweisung Fehler', e);
+      });
+    } else {
+      // Lokal
+      var idx = masterItems.indexOf(it);
+      if (idx >= 0) masterItems[idx].assignedTo = assignedTo;
+      assignItemToPlayers(id, updated);
+    }
+  });
+
+  // Waffen zuweisen
+  weaponIds.forEach(function(id) {
+    var w = qsSelectedWeapons[id];
+    var assignedTo = (w.assignedTo || []).slice();
+    if (assignedTo.indexOf(uid) < 0) assignedTo.push(uid);
+    var updated = Object.assign({}, w, { assignedTo: assignedTo, updatedAt: Date.now() });
+    if (fbDb && w._id) {
+      fbDb.collection('masterItems').doc(w._id).update({ assignedTo: assignedTo, updatedAt: Date.now() }).then(function() {
+        assignWeaponToPlayers(w._id, updated);
+      }).catch(function(e) {
+        dbgLog('err', 'QS Waffen-Zuweisung Fehler', e);
+      });
+    } else {
+      var idx = masterWeapons.indexOf(w);
+      if (idx >= 0) masterWeapons[idx].assignedTo = assignedTo;
+      assignWeaponToPlayers(id, updated);
+    }
+  });
+
+  toast(total + (total === 1 ? ' Item' : ' Items') + ' → ' + escHtml(playerName));
+  qsClearSelection();
 }
 
 // Neue Master-Waffe hinzufügen
